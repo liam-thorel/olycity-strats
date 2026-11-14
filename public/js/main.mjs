@@ -511,6 +511,13 @@ function bindEvents() {
   $('#sheet-video').addEventListener('click', event => {
     if (event.target.closest('[data-retry]')) retryVideo();
   });
+  // Molette au-dessus de la vidéo (ordinateur) : elle fait défiler les champs, pas la page.
+  $('#sheet-video').addEventListener('wheel', event => {
+    const fields = sheet.querySelector('.sheet-fields');
+    if (fields.scrollHeight <= fields.clientHeight || getComputedStyle(fields).overflowY === 'visible') return;
+    fields.scrollTop += event.deltaY;
+    event.preventDefault();
+  }, { passive:false });
   $('#redetect').addEventListener('click', redetect);
   $('#sheet-form').addEventListener('submit', event => { event.preventDefault(); saveSheet(); });
   $('#delete-btn').addEventListener('click', deleteStrat);

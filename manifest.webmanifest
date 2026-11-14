@@ -1,0 +1,13 @@
+{
+  "name": "OLYCITY Strats",
+  "short_name": "Strats",
+  "description": "Les strats Rainbow Six Siege du Discord OLYCITY, rangées par map.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0a0c10",
+  "theme_color": "#0a0c10",
+  "icons": [
+    { "src": "assets/pwa-icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/pwa-icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

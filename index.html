@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OLYCITY Strats</title>
+  <meta name="description" content="Les strats Rainbow Six Siege du Discord OLYCITY, rangées par map à partir des TikToks qu'on s'envoie.">
+  <meta name="theme-color" content="#0a0c10">
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/pwa-icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta property="og:title" content="OLYCITY Strats">
+  <meta property="og:description" content="Les strats R6 du groupe, rangées par map.">
+  <meta property="og:image" content="https://strats.olycity.fr/assets/pwa-icon-512.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Tomorrow:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="sdk/olycity.css">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <div class="bg" aria-hidden="true"><div class="glow a"></div><div class="glow b"></div></div>
+
+  <header class="topbar">
+    <a class="brand" href="https://olycity.fr" title="Retour à olycity.fr">
+      <img src="assets/logo.svg" alt="" width="28" height="31">
+      <span>OLY<b>CITY</b> <em>Strats</em></span>
+    </a>
+    <button class="profile-chip" id="profile-chip" type="button" aria-label="Changer de profil"><span>…</span></button>
+  </header>
+
+  <main class="page">
+    <section class="hero">
+      <div>
+        <span class="kicker">Rainbow Six Siege</span>
+        <h1>Les strats du groupe</h1>
+        <p>Colle un ou plusieurs liens TikTok : la map, le côté et les agents sont devinés depuis le titre. Vous complétez le reste.</p>
+      </div>
+      <form class="add-form card" id="add-form" autocomplete="off">
+        <label for="add-input">Ajouter des TikToks</label>
+        <div class="add-row">
+          <input class="input" id="add-input" name="links" placeholder="https://vm.tiktok.com/… (plusieurs liens acceptés)" inputmode="url">
+          <button class="btn btn-primary" type="submit">Ajouter</button>
+        </div>
+        <p class="add-status" id="add-status" role="status" aria-live="polite"></p>
+      </form>
+    </section>
+
+    <section class="filters" aria-label="Filtres">
+      <input class="input search" id="search" type="search" placeholder="Rechercher (titre, agent, notes…)">
+      <div class="seg" id="side-filter" role="group" aria-label="Côté">
+        <button type="button" data-side="" class="is-active">Tous</button>
+        <button type="button" data-side="atk">Attaque</button>
+        <button type="button" data-side="def">Défense</button>
+      </div>
+      <select class="input select" id="agent-filter" aria-label="Agent"><option value="">Tous les agents</option></select>
+      <select class="input select" id="tag-filter" aria-label="Type de strat"><option value="">Tous les types</option></select>
+      <select class="input select" id="status-filter" aria-label="Statut"><option value="">Tous les statuts</option></select>
+    </section>
+
+    <div class="layout">
+      <nav class="maps" id="maps" aria-label="Maps"></nav>
+      <section class="results" id="results" aria-live="polite">
+        <p class="empty">Chargement des strats…</p>
+      </section>
+    </div>
+  </main>
+
+  <dialog class="sheet" id="sheet" aria-labelledby="sheet-title">
+    <form method="dialog" class="sheet-body" id="sheet-form" autocomplete="off">
+      <div class="sheet-video" id="sheet-video"></div>
+      <div class="sheet-fields">
+        <header class="sheet-head">
+          <h2 id="sheet-title">Strat</h2>
+          <button class="icon-btn" type="button" data-close aria-label="Fermer">✕</button>
+        </header>
+        <p class="sheet-source" id="sheet-source"></p>
+
+        <div class="field">
+          <label for="f-title">Titre</label>
+          <input class="input" id="f-title" name="title" maxlength="160">
+        </div>
+        <div class="field">
+          <label for="f-description">Description TikTok <button type="button" class="link-btn" id="redetect">Re-détecter</button></label>
+          <textarea class="input textarea" id="f-description" name="description" rows="2" maxlength="2000" placeholder="Colle ici le texte du TikTok si rien n'a été récupéré"></textarea>
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <label for="f-map">Map</label>
+            <select class="input select" id="f-map" name="map"></select>
+          </div>
+          <div class="field">
+            <label for="f-site">Site / étage</label>
+            <input class="input" id="f-site" name="site" maxlength="80" placeholder="ex. 2F Bureau du CEO">
+          </div>
+        </div>
+        <div class="field">
+          <span class="label">Côté</span>
+          <div class="seg" id="f-side" role="group" aria-label="Côté">
+            <button type="button" data-side="">?</button>
+            <button type="button" data-side="atk">Attaque</button>
+            <button type="button" data-side="def">Défense</button>
+          </div>
+        </div>
+        <div class="field">
+          <span class="label">Agents <small id="agent-count"></small></span>
+          <input class="input input-sm" id="agent-search" placeholder="Filtrer les agents…">
+          <div class="agent-picker" id="f-agents"></div>
+        </div>
+        <div class="field">
+          <span class="label">Type de strat</span>
+          <div class="chips" id="f-tags"></div>
+        </div>
+        <div class="field">
+          <span class="label">Statut</span>
+          <div class="seg" id="f-status" role="group" aria-label="Statut"></div>
+        </div>
+        <div class="field">
+          <label for="f-notes">Notes</label>
+          <textarea class="input textarea" id="f-notes" name="notes" rows="4" maxlength="4000" placeholder="Rôles, timing, qui fait quoi, variantes…"></textarea>
+        </div>
+        <p class="error" id="sheet-error" role="alert"></p>
+        <footer class="sheet-foot">
+          <button class="btn danger" type="button" id="delete-btn">Supprimer</button>
+          <a class="btn" id="open-tiktok" target="_blank" rel="noopener">Ouvrir sur TikTok</a>
+          <button class="btn btn-primary" type="submit" id="save-btn">Enregistrer</button>
+        </footer>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script type="module" src="js/main.mjs"></script>
+</body>
+</html>

@@ -175,6 +175,7 @@
 .btn-discord:hover { border-color:transparent; background:#4752c4; }
 
 /* ─── Vidéo (copie locale ou lecteur TikTok) ─── */
+.video-close { display:none; }
 .sheet-video video { width:100%; height:100%; background:#000; object-fit:contain; }
 .video-note { position:absolute; left:0; right:0; bottom:0; padding:8px 12px; background:rgba(7,8,12,.88); color:var(--muted); font-size:12px; text-align:center; }
 .pill.video-pending { color:var(--gold); }
@@ -218,9 +219,17 @@ button, a, select, .chip { touch-action:manipulation; -webkit-tap-highlight-colo
    et on la regarde pendant qu'on remplit. Barre du titre (✕) collée en haut des
    champs, boutons collés en bas, aucune zone qui défile dans une autre. */
 @media (max-width:860px) {
-  .sheet { width:100%; max-width:100%; height:100dvh; max-height:100dvh; margin:0; border:0; border-radius:0; }
-  .sheet-body { display:flex; flex-direction:column; height:100%; max-height:none; overflow:hidden; }
-  .sheet-video { flex:0 0 auto; display:block; height:42dvh; min-height:0; }
+  /* Panneau qui monte du bas : la page reste visible en haut (toucher pour fermer). */
+  .sheet {
+    width:100%; max-width:100%; height:calc(100dvh - 48px); max-height:calc(100dvh - 48px); margin:auto 0 0;
+    border:0; border-top:1px solid var(--border2); border-radius:16px 16px 0 0;
+  }
+  .sheet-body { position:relative; display:flex; flex-direction:column; height:100%; max-height:none; overflow:hidden; }
+  .video-close {
+    position:absolute; top:10px; right:10px; z-index:4; display:grid; place-items:center; width:40px; height:40px;
+    border:1px solid rgba(255,255,255,.25); border-radius:50%; background:rgba(7,8,12,.72); color:#fff; font-size:16px; cursor:pointer;
+  }
+  .sheet-video { flex:0 0 auto; display:block; height:40dvh; min-height:0; border-radius:16px 16px 0 0; overflow:hidden; }
   .sheet-video video, .sheet-video iframe { display:block; width:100%; height:100%; min-height:0; }
   .sheet-video .placeholder { display:grid; place-items:center; height:100%; padding:16px; }
   .video-note { position:absolute; }

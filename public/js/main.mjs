@@ -621,41 +621,6 @@ async function handleShareAndLinks() {
   }
 }
 
-/* ─── Diagnostic temporaire : appuis dans la fiche sur téléphone ──────── */
-
-function describe(element) {
-  if (!element) return '∅';
-  const label = (element.dataset?.agent || element.dataset?.tag || element.dataset?.side || element.dataset?.status
-    || element.id || element.textContent || '').trim().slice(0, 20);
-  return `${element.tagName.toLowerCase()}${element.className && typeof element.className === 'string' ? `.${element.className.split(' ')[0]}` : ''}(${label})`;
-}
-
-function watchTaps() {
-  if (!matchMedia('(pointer:coarse)').matches) return;
-  let sent = 0;
-  let pending = null;
-  sheet.addEventListener('touchstart', event => {
-    const touch = event.touches[0];
-    if (!touch) return;
-    const atPoint = document.elementFromPoint(touch.clientX, touch.clientY);
-    pending = {
-      x:Math.round(touch.clientX), y:Math.round(touch.clientY),
-      touched:describe(event.target), atPoint:describe(atPoint), clicked:'',
-      scrollY:Math.round(scrollY), vv:visualViewport ? `${Math.round(visualViewport.offsetTop)}/${Math.round(visualViewport.height)}` : '', ih:innerHeight,
-    };
-  }, { capture:true, passive:true });
-  sheet.addEventListener('click', event => { if (pending) pending.clicked = describe(event.target); }, true);
-  sheet.addEventListener('touchend', () => {
-    const tap = pending;
-    pending = null;
-    if (!tap || sent >= 30) return;
-    setTimeout(() => {
-      sent += 1;
-      fetch('/api/debug-tap', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(tap) }).catch(() => {});
-    }, 600);
-  }, { capture:true, passive:true });
-}
-
 /* ─── Installation et aide ────────────────────────────────────────────── */
 
 let installEvent = null;
@@ -716,7 +681,6 @@ async function start() {
   fillFilterSelects();
   bindEvents();
   bindHelp();
-  watchTaps();
   render();
   let first = true;
   subscribe(items => {

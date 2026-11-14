@@ -168,13 +168,6 @@ export function createApp(config, { fetchImpl = fetch, log = console } = {}) {
       return undefined;
     }
 
-    // Diagnostic temporaire : appuis dans la fiche sur téléphone.
-    if (path === '/api/debug-tap' && method === 'POST') {
-      const tap = await readJson(req, 2048);
-      log.info?.(`Appui ${user.name} : ${JSON.stringify(tap).slice(0, 400)} (${String(req.headers['user-agent'] || '').slice(13, 50)})`);
-      return send(res, 204, '');
-    }
-
     if (path === '/api/meta' && method === 'GET') {
       const meta = await getMeta(url.searchParams.get('url'), fetchImpl);
       const existing = store.findByVideo(meta.videoId);

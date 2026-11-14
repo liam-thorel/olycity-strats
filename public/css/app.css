@@ -254,3 +254,9 @@ button, a, select, .chip { touch-action:manipulation; -webkit-tap-highlight-colo
   .sheet-foot .danger { margin-right:auto; }
   .sheet-foot .btn-primary { flex:1 1 auto; }
 }
+
+/* iPhone : un champ dont le texte fait moins de 16 px déclenche un zoom automatique
+   quand on le touche (la page reste zoomée, les boutons sortent de l'écran). */
+@media (pointer:coarse) {
+  input, select, textarea, .input, .input-sm { font-size:16px; }
+}

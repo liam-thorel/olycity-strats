@@ -203,3 +203,6 @@ html:has(dialog[open]), body:has(dialog[open]) { overflow:hidden; }
 .sheet, .help { overscroll-behavior:contain; }
 .btn-paste { flex-shrink:0; }
 @media (max-width:480px) { .btn-paste { min-height:46px; } }
+.help details { color:var(--muted); font-size:14px; }
+.help summary { cursor:pointer; color:var(--cyan); font-weight:600; }
+.help details ol { margin-top:8px; }

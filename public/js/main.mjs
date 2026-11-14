@@ -606,7 +606,7 @@ async function handleShareAndLinks() {
   history.replaceState(null, '', `/${location.hash}`);
   if (state.emptyShare && !shared) {
     state.emptyShare = false;
-    setAddStatus('Le partage TikTok est arrivé vide. Dans TikTok : Partager → Copier le lien, puis touche 📋 Coller.', true);
+    setAddStatus('Le partage est arrivé vide (TikTok ne transmet pas le lien aux raccourcis). Dans TikTok : Partager → Copier le lien, puis touche 📋 Coller.', true);
     $('#add-form').scrollIntoView({ behavior:'smooth', block:'center' });
     return;
   }

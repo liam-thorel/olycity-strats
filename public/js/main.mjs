@@ -279,6 +279,8 @@ function openSheet(nextDraft, { isNew = false, source = '' } = {}) {
   shownVideo = '';
   renderVideo();
   if (!sheet.open) sheet.showModal();
+  // Toujours repartir du haut de la fiche (titre et ✕ visibles), même après un focus automatique.
+  for (const box of [sheet, sheet.querySelector('.sheet-body'), sheet.querySelector('.sheet-fields')]) box.scrollTop = 0;
 }
 
 function openStrat(id) {
@@ -515,7 +517,13 @@ function bindEvents() {
   sheet.addEventListener('click', event => {
     if (event.target === sheet || event.target.closest('[data-close]')) sheet.close();
   });
-  sheet.addEventListener('close', () => { $('#sheet-video').innerHTML = ''; shownVideo = ''; draft = null; });
+  sheet.addEventListener('close', () => {
+    // L'événement arrive après coup : si la fiche a été rouverte entre-temps, on n'efface rien.
+    if (sheet.open) return;
+    $('#sheet-video').innerHTML = '';
+    shownVideo = '';
+    draft = null;
+  });
 
   $('#profile-chip').addEventListener('click', async () => {
     if (!confirm(`Connecté en tant que ${state.user?.name}. Se déconnecter ?`)) return;

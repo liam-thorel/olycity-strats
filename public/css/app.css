@@ -101,11 +101,15 @@
   background:var(--surf); color:var(--text); overflow:hidden;
 }
 .sheet::backdrop { background:rgba(4,5,8,.78); backdrop-filter:blur(4px); }
-.sheet-body { display:grid; grid-template-columns:minmax(0,340px) minmax(0,1fr); max-height:calc(100dvh - 26px); }
-.sheet-video { position:relative; display:grid; place-items:center; min-height:420px; background:#000; }
-.sheet-video iframe { width:100%; height:100%; min-height:560px; border:0; }
+.sheet-body {
+  display:grid; grid-template-columns:minmax(0,340px) minmax(0,1fr); grid-template-rows:minmax(0,1fr);
+  /* Hauteur fixe : seule la colonne des champs défile, l'en-tête (titre, ✕) reste accessible. */
+  height:min(900px, calc(100dvh - 26px));
+}
+.sheet-video { position:relative; display:grid; place-items:center; min-height:0; background:#000; }
+.sheet-video iframe { width:100%; height:100%; border:0; }
 .sheet-video .placeholder { padding:24px; color:var(--muted); text-align:center; }
-.sheet-fields { display:grid; align-content:start; gap:14px; padding:18px 20px 20px; overflow:auto; }
+.sheet-fields { display:grid; align-content:start; gap:14px; min-height:0; padding:18px 20px 20px; overflow:auto; overscroll-behavior:contain; }
 .sheet-head { display:flex; align-items:center; gap:12px; }
 .sheet-head h2 { flex:1; font:700 20px var(--font-display); }
 .icon-btn { display:grid; place-items:center; width:40px; height:40px; border:1px solid var(--border2); border-radius:8px; background:transparent; color:var(--muted); cursor:pointer; }
@@ -149,7 +153,7 @@
   .maps-sep { display:none; }
   .map-btn.is-empty { display:none; }
   .filters .select { flex:1 1 140px; }
-  .sheet-body { grid-template-columns:1fr; overflow:auto; }
+  .sheet-body { grid-template-columns:1fr; grid-template-rows:none; height:auto; max-height:calc(100dvh - 26px); overflow:auto; overscroll-behavior:contain; }
   .sheet-video { min-height:0; }
   .sheet-video iframe { height:70dvh; min-height:0; }
   .sheet-fields { overflow:visible; }
@@ -171,7 +175,7 @@
 .btn-discord:hover { border-color:transparent; background:#4752c4; }
 
 /* ─── Vidéo (copie locale ou lecteur TikTok) ─── */
-.sheet-video video { width:100%; height:100%; max-height:calc(100dvh - 26px); background:#000; object-fit:contain; }
+.sheet-video video { width:100%; height:100%; background:#000; object-fit:contain; }
 .video-note { position:absolute; left:0; right:0; bottom:0; padding:8px 12px; background:rgba(7,8,12,.88); color:var(--muted); font-size:12px; text-align:center; }
 .pill.video-pending { color:var(--gold); }
 .pill.video-failed { color:var(--muted); }

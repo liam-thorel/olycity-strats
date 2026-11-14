@@ -127,9 +127,15 @@ export class Downloader {
 
     // Copie déjà faite : seulement les sous-titres (et une couverture correcte).
     if (item.video?.status === 'ready' && existsSync(mediaPath(dir, item.videoId, 'mp4'))) {
-      await run(this.ytDlp, ['--no-playlist', '--no-warnings', '--skip-download', ...SUBTITLE_ARGS, ...output, url], 2 * 60_000);
+      const subs = await run(this.ytDlp, ['--no-playlist', '--skip-download', ...SUBTITLE_ARGS, ...output, url], 2 * 60_000);
       await this.ensureCover(id, item.videoId);
-      this.readTranscript(id, item.videoId);
+      // yt-dlp en échec (TikTok qui refuse, réseau) : on réessaiera, plutôt que de noter « pas de sous-titres ».
+      if (subs.code !== 0) {
+        const tries = (item.subsTries || 0) + 1;
+        this.log.warn?.(`Sous-titres de ${item.videoId} (essai ${tries}) : ${errorSummary(subs.output)}`);
+        if (tries < MAX_ATTEMPTS) { item.subsTries = tries; this.store.file.save(); return; }
+      }
+      this.readTranscript(id, item.videoId, subs.output);
       return;
     }
 
@@ -183,7 +189,7 @@ export class Downloader {
   }
 
   /** Lit les sous-titres téléchargés, les range dans la strat (complément des champs vides) et efface les fichiers. */
-  readTranscript(id, videoId) {
+  readTranscript(id, videoId, output = '') {
     const dir = this.store.mediaDir;
     let files = [];
     try { files = readdirSync(dir).filter(file => file.startsWith(`${videoId}.`) && file.endsWith('.vtt')); } catch { /* dossier illisible */ }
@@ -193,6 +199,9 @@ export class Downloader {
       try { text = parseVtt(readFileSync(join(dir, chosen), 'utf8')); } catch { /* fichier illisible */ }
     }
     for (const file of files) try { unlinkSync(join(dir, file)); } catch { /* déjà effacé */ }
+    if (!files.length && /subtitle/i.test(output) && !/no subtitles/i.test(output)) {
+      this.log.warn?.(`Sous-titres de ${videoId} annoncés mais introuvables : ${errorSummary(output)}`);
+    }
     const filled = this.store.applyTranscript(id, text);
     if (filled?.length) this.log.info?.(`Vidéo ${videoId} : ${filled.join(', ')} complété(s) depuis les sous-titres`);
   }

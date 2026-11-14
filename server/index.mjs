@@ -237,6 +237,12 @@ export function createApp(config, { fetchImpl = fetch, log = console } = {}) {
     }
 
     if (!['GET', 'HEAD'].includes(req.method)) throw new HttpError(405, 'Méthode non autorisée');
+    // Partages reçus (raccourci iPhone, appli Android) : on note ce qui arrive, pour diagnostiquer.
+    if ((path === '/' || path === '/share') && ['add', 'url', 'text', 'title'].some(key => url.searchParams.has(key))) {
+      const fields = ['add', 'url', 'text', 'title'].filter(key => url.searchParams.has(key))
+        .map(key => `${key}=${JSON.stringify(url.searchParams.get(key).slice(0, 200))}`);
+      log.info?.(`Partage reçu sur ${path} : ${fields.join(' ')} (${String(req.headers['user-agent'] || '').slice(0, 80)})`);
+    }
     const file = normalize(join(PUBLIC_DIR, decodeURIComponent(path === '/' ? '/index.html' : path)));
     if (!file.startsWith(PUBLIC_DIR + sep) || !existsSync(file)) return sendFile(req, res, join(PUBLIC_DIR, 'index.html'));
     return sendFile(req, res, file);

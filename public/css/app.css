@@ -201,3 +201,5 @@
 /* Fenêtre ouverte : la page derrière ne défile plus. */
 html:has(dialog[open]), body:has(dialog[open]) { overflow:hidden; }
 .sheet, .help { overscroll-behavior:contain; }
+.btn-paste { flex-shrink:0; }
+@media (max-width:480px) { .btn-paste { min-height:46px; } }

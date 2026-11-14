@@ -423,6 +423,24 @@ async function addMany(urls) {
   ].filter(Boolean).join(' · '));
 }
 
+/** Lien copié dans TikTok → ajout direct (Safari demande une confirmation « Coller »). */
+async function pasteFromClipboard() {
+  let text = '';
+  try {
+    text = await navigator.clipboard.readText();
+  } catch {
+    $('#add-input').focus();
+    setAddStatus('Accès au presse-papiers refusé : appuie longuement dans le champ puis « Coller ».', true);
+    return;
+  }
+  if (!extractTikTokUrls(text).length) {
+    setAddStatus('Le presse-papiers ne contient pas de lien TikTok. Dans TikTok : Partager → Copier le lien.', true);
+    return;
+  }
+  $('#add-input').value = text;
+  $('#add-form').requestSubmit();
+}
+
 async function onAdd(event) {
   event.preventDefault();
   const input = $('#add-input');
@@ -445,6 +463,7 @@ async function onAdd(event) {
 
 function bindEvents() {
   $('#add-form').addEventListener('submit', onAdd);
+  $('#paste-btn').addEventListener('click', pasteFromClipboard);
   $('#add-input').addEventListener('paste', () => setTimeout(() => {
     if (extractTikTokUrls($('#add-input').value).length) $('#add-form').requestSubmit();
   }));
@@ -587,7 +606,8 @@ async function handleShareAndLinks() {
   history.replaceState(null, '', `/${location.hash}`);
   if (state.emptyShare && !shared) {
     state.emptyShare = false;
-    toast('Le partage est arrivé vide : dans le raccourci, utilise la variable « URL encodée » (voir 📲 l’aide)');
+    setAddStatus('Le partage TikTok est arrivé vide. Dans TikTok : Partager → Copier le lien, puis touche 📋 Coller.', true);
+    $('#add-form').scrollIntoView({ behavior:'smooth', block:'center' });
     return;
   }
   if (shared) {

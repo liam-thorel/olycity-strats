@@ -20,11 +20,23 @@ l'exclure du serveur ; son accès tombe dans les 6 heures (`RECHECK_HOURS`).
 - **Ajouter** : coller un ou plusieurs liens TikTok (un message Discord entier
   marche aussi). Avec un seul lien, la fiche s'ouvre préremplie pour vérifier ;
   avec plusieurs, tout est ajouté d'un coup en « À tester ».
-- **Détection automatique** (`public/js/detect.mjs`) depuis le titre du TikTok :
-  map, côté (ou déduit des agents), agents, type de strat et étage. Les noms qui
-  sont aussi des mots courants (Smoke, Frost, Tour…) ne sont reconnus qu'avec une
-  majuscule ou en hashtag ; « Ace » n'est jamais détecté. **Re-détecter** relance
-  la détection après modification du titre ou de la description.
+- **Détection automatique** (`public/js/detect.mjs`, données dans `public/js/r6.mjs`) :
+  - depuis le **titre** : map, côté (ou déduit des agents), agents, type de strat, site ;
+  - depuis **ce qui est dit dans la vidéo** (sous-titres TikTok récupérés avec la copie) :
+    seuls les champs encore vides sont complétés, marqués « ✨ auto » dans la fiche ;
+    on compte les mentions et on ne garde que les agents du côté dominant (les
+    adversaires cités sont ignorés) ;
+  - agents reconnus par leur nom **ou leur gadget** (Kiba → Azami, Evil Eye → Maestro,
+    airjab → Nomad…) et par les erreurs fréquentes des sous-titres (« a zombie ») ;
+  - **bombsites** reconnus par leurs salles (Cocktail → Kafe 3F, Hookah → Littoral…) :
+    un nom de salle propre à une map suffit à deviner la map ;
+  - hashtags collés (`#bankr6`, `#r6thermite`) ; « #Twitch » / « live sur Twitch »
+    désigne la plateforme, pas l'agente ; « Ace » n'est jamais détecté seul.
+  **Re-détecter** relance la détection (titre + vidéo).
+- **Maps et positions en français** (Banque, Littoral…) avec les noms anglais reconnus.
+  Le champ **Site / salle** propose les bombsites par paire (`2F · Bureau du PDG /
+  Salon de direction`) et les salles de la map, en tapant en français ou en anglais
+  (« ceo », « lockers », « cocktail »…). Un bombsite choisi sans map règle la map.
 - **Vidéos** : chaque TikTok est copié sur le serveur avec yt-dlp, une vidéo à la
   fois. Tant que la copie n'est pas prête (ou si elle échoue), la fiche affiche le
   lecteur TikTok ; « Réessayer » relance une copie échouée.
@@ -48,6 +60,7 @@ olycity-strats/
 │   ├── store.mjs            data/strats.json
 │   ├── downloader.mjs       Copies yt-dlp dans data/media/
 │   ├── discord-watch.mjs    Salon Discord strats-r6 → strats
+│   ├── transcript.mjs       Sous-titres (WebVTT) → texte, complément des champs vides
 │   └── tiktok-page.mjs      Lecture du titre d'un TikTok
 ├── Dockerfile, docker-compose.yml
 ├── deploy/deploy.sh         Envoi sur le mini PC

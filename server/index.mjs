@@ -123,7 +123,12 @@ function sendFile(req, res, file, { cache = 'no-cache', extraHeaders = {} } = {}
 
 function publicItem(item) {
   const { video = {} } = item;
-  return { ...item, video:{ status:video.status || 'none', error:video.error || '', cover:Boolean(video.cover), size:video.size || 0 } };
+  return {
+    ...item,
+    transcript:item.transcript || '',
+    auto:item.auto || [],
+    video:{ status:video.status || 'none', error:video.error || '', cover:Boolean(video.cover), size:video.size || 0, v:video.coverAt || video.at || 0 },
+  };
 }
 
 export function createApp(config, { fetchImpl = fetch, log = console } = {}) {

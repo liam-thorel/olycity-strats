@@ -57,3 +57,41 @@ test('identifiants uniques', () => {
   assert.equal(new Set(MAPS.map(map => map.id)).size, MAPS.length);
   assert.equal(new Set(AGENTS.map(agent => agent.id)).size, AGENTS.length);
 });
+
+test('gadgets → agent, bombsites → map et site, hashtags collés', () => {
+  const kiba = detectStrat('Best Kiba spots on Villa aviator room');
+  assert.equal(kiba.map, 'villa');
+  assert.deepEqual(kiba.agents, ['azami']);
+  assert.equal(kiba.side, 'def');
+  assert.equal(kiba.site, '2F · Salle de l’aviateur / Salle de jeux');
+
+  const cocktail = detectStrat('setup cocktail avec #r6smoke et #kapkanr6');
+  assert.equal(cocktail.map, 'kafe');
+  assert.deepEqual(cocktail.agents, ['smoke', 'kapkan']);
+  assert.equal(cocktail.site, '3F · Bar / Salon cocktail');
+
+  const ceo = detectStrat('Evil eye + yokai sur #bankr6 CEO');
+  assert.equal(ceo.map, 'bank');
+  assert.deepEqual(ceo.agents, ['maestro', 'echo']);
+  assert.equal(ceo.site, '2F · Bureau du PDG / Salon de direction');
+});
+
+test('Twitch la plateforme n’est pas Twitch l’agente', () => {
+  assert.deepEqual(detectStrat('SPAWNKILL SUR KAFE ! #R6 #Live #Twitch #Tips').agents, []);
+  assert.deepEqual(detectStrat('je suis en live sur Twitch ce soir').agents, []);
+  assert.deepEqual(detectStrat('Twitch drone peek').agents, ['twitch']);
+});
+
+test('sous-titres : on garde les agents de son côté, comptés', () => {
+  const transcript = 'Try this duo hold with a zombie and Mute. Mute places his jammer to protect the kibas from Flores. '
+    + 'The Kiba barrier makes a one way. Mute stays on stairs. Watch out for Flores drones.';
+  const result = detectStrat(transcript, { mode:'transcript' });
+  assert.equal(result.side, 'def');
+  assert.deepEqual(result.agents, ['mute', 'azami']);
+  assert.ok(!result.agents.includes('flores'));
+});
+
+test('un mot de bombsite commun ne devine pas la map dans une vidéo', () => {
+  assert.equal(detectStrat('go to the bar then the kitchen', { mode:'transcript' }).map, '');
+  assert.equal(detectStrat('the cocktail lounge window, then cocktail again', { mode:'transcript' }).map, 'kafe');
+});

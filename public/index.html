@@ -68,6 +68,7 @@
       <select class="input select" id="agent-filter" aria-label="Agent"><option value="">Tous les agents</option></select>
       <select class="input select" id="tag-filter" aria-label="Type de strat"><option value="">Tous les types</option></select>
       <select class="input select" id="status-filter" aria-label="Statut"><option value="">Tous les statuts</option></select>
+      <select class="input select" id="author-filter" aria-label="Ajoutée par"><option value="">Tout le monde</option></select>
     </section>
 
     <div class="layout">
@@ -97,18 +98,24 @@
           <label for="f-description">Description TikTok <button type="button" class="link-btn" id="redetect">Re-détecter</button></label>
           <textarea class="input textarea" id="f-description" name="description" rows="2" maxlength="2000" placeholder="Colle ici le texte du TikTok si rien n'a été récupéré"></textarea>
         </div>
+        <details class="transcript" id="f-transcript-box" hidden>
+          <summary>🗣️ Ce qui est dit dans la vidéo</summary>
+          <p id="f-transcript"></p>
+        </details>
         <div class="grid-2">
           <div class="field">
-            <label for="f-map">Map</label>
+            <label for="f-map">Map <span class="auto" data-auto="map" hidden>✨ auto</span></label>
             <select class="input select" id="f-map" name="map"></select>
           </div>
-          <div class="field">
-            <label for="f-site">Site / étage</label>
-            <input class="input" id="f-site" name="site" maxlength="80" placeholder="ex. 2F Bureau du CEO">
+          <div class="field combo">
+            <label for="f-site">Site / salle <span class="auto" data-auto="site" hidden>✨ auto</span></label>
+            <input class="input" id="f-site" name="site" maxlength="80" placeholder="ex. PDG, cocktail, lockers…" autocomplete="off"
+              role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="site-suggest">
+            <ul class="suggest" id="site-suggest" role="listbox" hidden></ul>
           </div>
         </div>
         <div class="field">
-          <span class="label">Côté</span>
+          <span class="label">Côté <span class="auto" data-auto="side" hidden>✨ auto</span></span>
           <div class="seg" id="f-side" role="group" aria-label="Côté">
             <button type="button" data-side="">?</button>
             <button type="button" data-side="atk">Attaque</button>
@@ -116,12 +123,12 @@
           </div>
         </div>
         <div class="field">
-          <span class="label">Agents <small id="agent-count"></small></span>
+          <span class="label">Agents <small id="agent-count"></small> <span class="auto" data-auto="agents" hidden>✨ auto</span></span>
           <input class="input input-sm" id="agent-search" placeholder="Filtrer les agents…">
           <div class="agent-picker" id="f-agents"></div>
         </div>
         <div class="field">
-          <span class="label">Type de strat</span>
+          <span class="label">Type de strat <span class="auto" data-auto="tags" hidden>✨ auto</span></span>
           <div class="chips" id="f-tags"></div>
         </div>
         <div class="field">

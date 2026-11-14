@@ -6,6 +6,7 @@ import { randomBytes } from 'node:crypto';
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { AGENTS, MAPS, SIDES, STATUSES, TAGS } from '../public/js/r6.mjs';
+import { autofill } from './transcript.mjs';
 
 export class JsonFile {
   constructor(path, fallback) {
@@ -119,9 +120,26 @@ export class Store {
   update(id, fields, user) {
     const item = this.get(id);
     if (!item) return null;
-    Object.assign(item, sanitizeFields(fields), { updatedBy:user, updatedAt:Date.now() });
+    const clean = sanitizeFields(fields);
+    // Un champ retouché par un membre n'est plus « complété automatiquement ».
+    if (item.auto?.length) {
+      item.auto = item.auto.filter(field => !(field in clean) || JSON.stringify(clean[field]) === JSON.stringify(item[field]));
+    }
+    Object.assign(item, clean, { updatedBy:user, updatedAt:Date.now() });
     this.changed();
     return item;
+  }
+
+  /** Range les sous-titres et complète les champs encore vides. Renvoie les champs complétés. */
+  applyTranscript(id, text) {
+    const item = this.get(id);
+    if (!item) return [];
+    item.transcript = text || '';
+    const { patch, filled } = autofill(item, item.transcript);
+    Object.assign(item, sanitizeFields(patch));
+    if (filled.length) item.auto = [...new Set([...(item.auto || []), ...filled])];
+    this.changed();
+    return filled;
   }
 
   setVideo(id, video) {

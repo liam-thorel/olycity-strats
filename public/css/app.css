@@ -260,3 +260,33 @@ button, a, select, .chip { touch-action:manipulation; -webkit-tap-highlight-colo
 @media (pointer:coarse) {
   input, select, textarea, .input, .input-sm { font-size:16px; }
 }
+
+/* ─── Autocomplétion du site ─── */
+.combo { position:relative; }
+.suggest {
+  position:absolute; top:100%; left:0; right:0; z-index:20; max-height:280px; margin-top:4px; padding:4px; overflow:auto;
+  list-style:none; border:1px solid var(--border2); border-radius:10px; background:var(--surf2); box-shadow:0 14px 34px #000a;
+}
+.suggest li[data-index] { display:grid; gap:1px; padding:8px 10px; border-radius:7px; cursor:pointer; }
+.suggest li[data-index]:hover, .suggest li.is-active { background:var(--surf3); }
+.suggest li span { font-size:14px; font-weight:600; }
+.suggest li small { color:var(--dim); font-size:11.5px; }
+.suggest li em { color:var(--cyan); font-size:11px; font-style:normal; font-weight:700; }
+.suggest-head { padding:8px 10px 4px; color:var(--dim); font:700 10px var(--font-display); letter-spacing:1.5px; text-transform:uppercase; }
+
+/* ─── Ce qui est dit dans la vidéo ─── */
+.transcript { padding:10px 12px; border:1px solid var(--border); border-radius:8px; background:var(--surf2); }
+.transcript summary { color:var(--cyan); font-size:13px; font-weight:600; cursor:pointer; }
+.transcript p { max-height:200px; margin-top:8px; overflow:auto; color:var(--muted); font-size:13.5px; line-height:1.55; }
+
+/* ─── Agents de l'autre côté (repliés) ─── */
+.other-side summary { margin:2px 0 6px; color:var(--dim); font:700 10px var(--font-display); letter-spacing:2px; text-transform:uppercase; cursor:pointer; }
+
+/* ─── Cartes ─── */
+.pill.new { background:var(--red); color:#fff; }
+.pill.site { max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-transform:none; letter-spacing:.2px; }
+.strat.is-new { border-color:var(--red-mid); }
+.strat-cover video.preview { position:absolute; inset:0; z-index:1; width:100%; height:100%; object-fit:cover; }
+.map-group h2 em { color:var(--dim); font:600 13px var(--font-body); font-style:normal; letter-spacing:0; }
+.map-group h2 small .atk { color:var(--atk); }
+.map-group h2 small .def { color:var(--def); }

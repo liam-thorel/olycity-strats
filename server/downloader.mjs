@@ -3,14 +3,18 @@
  * rester discret auprès de TikTok. Fichiers : media/<videoId>.mp4 et .jpg.
  */
 import { spawn } from 'node:child_process';
-import { existsSync, statSync, statfsSync, unlinkSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync, statfsSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
+import { parseVtt, pickSubtitle } from './transcript.mjs';
 
 const MAX_ATTEMPTS = 3;
 const GAP_MS = 5_000;
 const RETRY_DELAY_MS = 30 * 60_000;
 const MIN_FREE_BYTES = 5 * 1024 ** 3;
+const MIN_COVER_BYTES = 8_000;
 const UPDATE_EVERY_MS = 24 * 3_600_000;
+// Sous-titres (ce qui est dit dans la vidéo) : français, sinon anglais.
+const SUBTITLE_ARGS = ['--write-subs', '--write-auto-subs', '--sub-langs', 'fra.*,fr.*,eng.*,en.*', '--sub-format', 'vtt'];
 
 export const mediaPath = (dir, videoId, ext) => join(dir, `${videoId}.${ext}`);
 
@@ -40,9 +44,11 @@ export function errorSummary(output = '') {
 }
 
 export class Downloader {
-  constructor(store, { ytDlp = 'yt-dlp', log = console } = {}) {
+  constructor(store, { ytDlp = 'yt-dlp', ffmpeg = 'ffmpeg', log = console } = {}) {
     this.store = store;
     this.ytDlp = ytDlp;
+    this.ffmpeg = ffmpeg;
+    this.coverChecked = new Set();
     this.log = log;
     this.queue = [];
     this.running = false;
@@ -55,6 +61,13 @@ export class Downloader {
       for (const item of this.store.list()) {
         const video = item.video || {};
         const ready = video.status === 'ready' && existsSync(mediaPath(this.store.mediaDir, item.videoId, 'mp4'));
+        // Vidéo déjà copiée mais sous-titres jamais cherchés (strats d'avant) : on rattrape.
+        if (item.videoId && ready && item.transcript === undefined) { this.enqueue(item.id); continue; }
+        // Couverture noire d'une strat déjà copiée : une seule tentative par démarrage.
+        if (ready && !this.coverChecked.has(item.videoId)) {
+          this.coverChecked.add(item.videoId);
+          this.ensureCover(item.id, item.videoId).catch(() => {});
+        }
         if (!item.videoId || ready) continue;
         if (video.status === 'failed' && (video.attempts || 0) >= MAX_ATTEMPTS) continue;
         if (video.status === 'failed' && Date.now() - (video.at || 0) < RETRY_DELAY_MS) continue;
@@ -109,14 +122,25 @@ export class Downloader {
     } catch { /* statfs indisponible : on tente quand même */ }
 
     await this.maybeUpdate();
-    this.store.setVideo(id, { status:'downloading' });
     const url = item.author ? `https://www.tiktok.com/@${item.author}/video/${item.videoId}` : item.url;
+    const output = ['-o', join(dir, `${item.videoId}.%(ext)s`)];
+
+    // Copie déjà faite : seulement les sous-titres (et une couverture correcte).
+    if (item.video?.status === 'ready' && existsSync(mediaPath(dir, item.videoId, 'mp4'))) {
+      await run(this.ytDlp, ['--no-playlist', '--no-warnings', '--skip-download', ...SUBTITLE_ARGS, ...output, url], 2 * 60_000);
+      await this.ensureCover(id, item.videoId);
+      this.readTranscript(id, item.videoId);
+      return;
+    }
+
+    this.store.setVideo(id, { status:'downloading' });
     const result = await run(this.ytDlp, [
       '--no-playlist', '--no-progress', '--no-warnings',
       '-f', 'b[ext=mp4][vcodec^=h264]/b[ext=mp4]/b',
       '--max-filesize', '300M',
       '--write-thumbnail', '--convert-thumbnails', 'jpg',
-      '-o', join(dir, `${item.videoId}.%(ext)s`),
+      ...SUBTITLE_ARGS,
+      ...output,
       url,
     ], 5 * 60_000);
 
@@ -132,11 +156,45 @@ export class Downloader {
         size:statSync(file).size, cover:existsSync(mediaPath(dir, item.videoId, 'jpg')),
       });
       this.log.info?.(`Vidéo ${item.videoId} copiée`);
+      await this.ensureCover(id, item.videoId);
+      this.readTranscript(id, item.videoId);
     } else {
       const error = errorSummary(result.output);
       this.store.setVideo(id, { status:'failed', attempts, at:Date.now(), error });
       this.log.warn?.(`Vidéo ${item.videoId} : ${error}`);
     }
+  }
+
+  /**
+   * Couverture absente ou quasi vide (image noire de quelques Ko) : on prend une
+   * image de la vidéo elle-même, à 1,5 s.
+   */
+  async ensureCover(id, videoId) {
+    const cover = mediaPath(this.store.mediaDir, videoId, 'jpg');
+    let size = 0;
+    try { size = statSync(cover).size; } catch { /* pas de couverture */ }
+    if (size >= MIN_COVER_BYTES) return;
+    const result = await run(this.ffmpeg, [
+      '-y', '-loglevel', 'error', '-ss', '1.5', '-i', mediaPath(this.store.mediaDir, videoId, 'mp4'),
+      '-frames:v', '1', '-vf', 'scale=540:-2', '-q:v', '4', cover,
+    ], 60_000);
+    if (result.code === 0 && existsSync(cover)) this.store.setVideo(id, { cover:true, coverAt:Date.now() });
+    else this.log.warn?.(`Couverture de ${videoId} impossible : ${errorSummary(result.output)}`);
+  }
+
+  /** Lit les sous-titres téléchargés, les range dans la strat (complément des champs vides) et efface les fichiers. */
+  readTranscript(id, videoId) {
+    const dir = this.store.mediaDir;
+    let files = [];
+    try { files = readdirSync(dir).filter(file => file.startsWith(`${videoId}.`) && file.endsWith('.vtt')); } catch { /* dossier illisible */ }
+    let text = '';
+    const chosen = pickSubtitle(files);
+    if (chosen) {
+      try { text = parseVtt(readFileSync(join(dir, chosen), 'utf8')); } catch { /* fichier illisible */ }
+    }
+    for (const file of files) try { unlinkSync(join(dir, file)); } catch { /* déjà effacé */ }
+    const filled = this.store.applyTranscript(id, text);
+    if (filled?.length) this.log.info?.(`Vidéo ${videoId} : ${filled.join(', ')} complété(s) depuis les sous-titres`);
   }
 
   /** Supprime les fichiers d'une vidéo si plus aucune strat ne l'utilise. */

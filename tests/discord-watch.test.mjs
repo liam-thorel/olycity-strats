@@ -59,7 +59,7 @@ test('un TikTok posté dans le salon devient une strat, avec réponse du bot', a
   assert.equal(watcher.state.data.lastId, '103');
 
   assert.equal(posted.length, 1);
-  assert.match(posted[0].content, /✅ Ajoutée : Bank · DEF · Sous-sol · Mute, Azami/);
+  assert.match(posted[0].content, /✅ Ajoutée : Banque · DEF · Sous-sol · Mute, Azami/);
   assert.match(posted[0].content, new RegExp(`<https://strats.olycity.fr/\\?strat=${item.id}>`));
   assert.equal(posted[0].message_reference.message_id, '102');
   assert.deepEqual(posted[0].allowed_mentions, { parse:[] });

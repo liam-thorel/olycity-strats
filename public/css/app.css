@@ -198,8 +198,13 @@
 .help-foot { color:var(--dim); font-size:13px; }
 .btn-small { min-height:32px; padding:0 12px; font-size:12px; }
 
-/* Fenêtre ouverte : la page derrière ne défile plus. */
-html:has(dialog[open]), body:has(dialog[open]) { overflow:hidden; }
+/* Fenêtre ouverte : la page derrière ne défile plus (ordinateur seulement : sur
+   iPhone, bloquer la page fausse la position des appuis dans la fenêtre, et la
+   fiche y est de toute façon en plein écran). */
+@media (min-width:861px) {
+  html:has(dialog[open]), body:has(dialog[open]) { overflow:hidden; }
+}
+button, a, select, .chip { touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
 .sheet, .help { overscroll-behavior:contain; }
 .btn-paste { flex-shrink:0; }
 @media (max-width:480px) { .btn-paste { min-height:46px; } }
@@ -221,7 +226,7 @@ html:has(dialog[open]), body:has(dialog[open]) { overflow:hidden; }
   .video-note { position:absolute; }
   .sheet-fields {
     flex:1 1 auto; min-height:0; gap:16px; padding:0 16px;
-    overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch;
+    overflow-y:auto; overscroll-behavior:contain;
   }
   .sheet-head {
     position:sticky; top:0; z-index:3; margin:0 -16px; padding:10px 16px;

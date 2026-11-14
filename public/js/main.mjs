@@ -1,71 +1,52 @@
-import { CONFIG } from '../config.js';
-import { currentProfile, db, escapeHTML, loadMembers, onProfileChange, pickProfile } from '../sdk/olycity.mjs';
+import { api, logout, me, subscribe } from './api.mjs';
 import { cleanTitle, detectStrat, normalize } from './detect.mjs';
 import { AGENTS, MAPS, STATUSES, TAGS, agentById, mapById, sideById, statusById, tagById } from './r6.mjs';
 import { embedUrl, extractTikTokUrls, fetchTikTokMeta } from './tiktok.mjs';
 
-const ITEMS = `${CONFIG.DB_ROOT}/items`;
 const $ = selector => document.querySelector(selector);
+
+export const escapeHTML = value => String(value ?? '')
+  .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+  .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 
 const state = {
   items:{},
   loaded:false,
-  profile:null,
+  user:null,
   filters:{ map:decodeURIComponent(location.hash.slice(1)), side:'', agent:'', tag:'', status:'', q:'' },
 };
 
 /* ─── Données ─────────────────────────────────────────────────────────── */
 
-const asList = value => (Array.isArray(value) ? value : Object.values(value || {})).filter(Boolean);
-
-function normalizeStrat(id, raw = {}) {
-  return {
-    id,
-    url:String(raw.url || ''),
-    videoId:String(raw.videoId || ''),
-    author:String(raw.author || ''),
-    description:String(raw.description || ''),
-    title:String(raw.title || ''),
-    map:String(raw.map || ''),
-    side:String(raw.side || ''),
-    site:String(raw.site || ''),
-    agents:asList(raw.agents).map(String),
-    tags:asList(raw.tags).map(String),
-    status:String(raw.status || 'todo'),
-    notes:String(raw.notes || ''),
-    addedBy:raw.addedBy || null,
-    addedAt:Number(raw.addedAt) || 0,
-    updatedBy:raw.updatedBy || null,
-    updatedAt:Number(raw.updatedAt) || 0,
-  };
-}
-
-const strats = () => Object.entries(state.items || {}).map(([id, raw]) => normalizeStrat(id, raw));
-
-function by() {
-  const profile = state.profile;
-  return profile ? { id:profile.id, name:profile.name } : { id:'guest', name:'Invité' };
-}
-
-/** Champs enregistrés dans Firebase (les tableaux vides sont gardés en []: Firebase les ignore). */
-function toRecord(draft) {
-  return {
-    url:draft.url, videoId:draft.videoId, author:draft.author,
-    description:draft.description.slice(0, 2000), title:draft.title.slice(0, 160),
-    map:draft.map, side:draft.side, site:draft.site.slice(0, 80),
-    agents:draft.agents, tags:draft.tags, status:draft.status, notes:draft.notes.slice(0, 4000),
-  };
-}
+const strats = () => Object.values(state.items || {});
+const findById = id => state.items[id] || null;
 
 function draftFromMeta(meta) {
   const detected = detectStrat(meta.description);
   return {
     id:'', url:meta.url, videoId:meta.videoId, author:meta.author, description:meta.description,
-    title:cleanTitle(meta.description), status:'todo', notes:'', ...detected,
+    title:cleanTitle(meta.description), status:'todo', notes:'', video:{ status:'none' }, ...detected,
   };
 }
 
-const findByVideo = videoId => videoId && strats().find(strat => strat.videoId === videoId);
+const editableFields = draft => ({
+  title:draft.title, description:draft.description, map:draft.map, side:draft.side, site:draft.site,
+  agents:draft.agents, tags:draft.tags, status:draft.status, notes:draft.notes,
+});
+
+async function createStrat(draft) {
+  try {
+    const { item } = await api('/api/strats', {
+      method:'POST',
+      body:{ url:draft.url, videoId:draft.videoId, author:draft.author, ...editableFields(draft) },
+    });
+    state.items = { ...state.items, [item.id]:item };
+    return { item };
+  } catch (error) {
+    if (error.status === 409) return { duplicateId:error.body?.id };
+    throw error;
+  }
+}
 
 /* ─── Filtres ─────────────────────────────────────────────────────────── */
 
@@ -90,21 +71,23 @@ function matches(strat, { ignoreMap = false } = {}) {
 
 /* ─── Rendu ───────────────────────────────────────────────────────────── */
 
-function renderProfileChip(profile) {
-  $('#profile-chip').innerHTML = profile
-    ? `${profile.avatar ? `<img src="${escapeHTML(profile.avatar)}" alt="">` : `<span>${escapeHTML(profile.name.slice(0, 1))}</span>`}<strong>${escapeHTML(profile.name)}</strong>`
-    : '<span>?</span><strong>Choisir mon profil</strong>';
+function renderUserChip() {
+  const user = state.user;
+  $('#profile-chip').innerHTML = user
+    ? `${user.avatar ? `<img src="${escapeHTML(user.avatar)}" alt="">` : `<span>${escapeHTML(user.name.slice(0, 1))}</span>`}<strong>${escapeHTML(user.name)}</strong>`
+    : '';
+  $('#profile-chip').hidden = !user;
 }
 
 function renderMaps() {
   const visible = strats().filter(strat => matches(strat, { ignoreMap:true }));
   const counts = visible.reduce((acc, strat) => ({ ...acc, [strat.map || 'none']:(acc[strat.map || 'none'] || 0) + 1 }), {});
-  const button = (id, name, count) => `<button type="button" class="map-btn${state.filters.map === id ? ' is-active' : ''}${count ? '' : ' is-empty'}" data-map="${id}">
+  const button = (id, name, count, always = false) => `<button type="button" class="map-btn${state.filters.map === id ? ' is-active' : ''}${count || always ? '' : ' is-empty'}" data-map="${id}">
     <span>${escapeHTML(name)}</span><small>${count}</small></button>`;
   const used = MAPS.filter(map => counts[map.id]);
   const unused = MAPS.filter(map => !counts[map.id]);
   $('#maps').innerHTML = [
-    button('', 'Toutes les maps', visible.length).replace(' is-empty', ''),
+    button('', 'Toutes les maps', visible.length, true),
     ...used.map(map => button(map.id, map.name, counts[map.id])),
     counts.none ? button('none', 'Sans map', counts.none) : '',
     unused.length ? '<p class="maps-sep">Pas encore de strat</p>' : '',
@@ -123,9 +106,15 @@ const timeAgo = timestamp => {
 
 function coverHTML(strat) {
   const fallback = `<span class="placeholder">${escapeHTML(mapById(strat.map)?.name || 'R6')}</span>`;
-  if (!CONFIG.TIKTOK_ENDPOINT || !strat.videoId) return fallback;
-  return `${fallback}<img src="${escapeHTML(`${CONFIG.TIKTOK_ENDPOINT}/cover/${strat.videoId}`)}" alt="" loading="lazy" onerror="this.remove()">`;
+  if (!strat.video?.cover) return fallback;
+  return `${fallback}<img src="/media/${escapeHTML(strat.videoId)}.jpg" alt="" loading="lazy">`;
 }
+
+const VIDEO_BADGES = {
+  pending:'<span class="pill video-pending" title="Copie de la vidéo en attente">⏳</span>',
+  downloading:'<span class="pill video-pending" title="Copie de la vidéo en cours">⏳</span>',
+  failed:'<span class="pill video-failed" title="Copie de la vidéo impossible : lecteur TikTok">TikTok</span>',
+};
 
 function cardHTML(strat) {
   const side = sideById(strat.side);
@@ -136,6 +125,7 @@ function cardHTML(strat) {
       <div class="strat-badges">
         ${side ? `<span class="pill ${side.id}">${side.short}</span>` : ''}
         ${strat.site ? `<span class="pill">${escapeHTML(strat.site)}</span>` : ''}
+        ${VIDEO_BADGES[strat.video?.status] || ''}
         ${status ? `<span class="pill status-${status.id}">${escapeHTML(status.name)}</span>` : ''}
       </div>
     </div>
@@ -175,7 +165,7 @@ function render() {
 }
 
 function fillFilterSelects() {
-  const options = (list, label = item => item.name) => list.map(item => `<option value="${item.id}">${escapeHTML(label(item))}</option>`).join('');
+  const options = list => list.map(item => `<option value="${item.id}">${escapeHTML(item.name)}</option>`).join('');
   const sorted = [...AGENTS].sort((left, right) => left.name.localeCompare(right.name, 'fr'));
   $('#agent-filter').insertAdjacentHTML('beforeend',
     `<optgroup label="Attaque">${options(sorted.filter(agent => agent.side === 'atk'))}</optgroup>
@@ -189,6 +179,7 @@ function fillFilterSelects() {
 
 const sheet = $('#sheet');
 let draft = null;
+let shownVideo = '';
 
 function setSeg(root, attribute, value) {
   root.querySelectorAll('button').forEach(button => button.classList.toggle('is-active', button.dataset[attribute] === value));
@@ -237,10 +228,28 @@ function fillSheet() {
   renderSheetChoices();
 }
 
+/** Lecteur : notre copie si elle est prête, sinon le lecteur TikTok. */
 function renderVideo() {
-  $('#sheet-video').innerHTML = draft.videoId
-    ? `<iframe src="${escapeHTML(embedUrl(draft.videoId))}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen title="Vidéo TikTok"></iframe>`
-    : `<p class="placeholder">${draft.url ? 'Lecture de la vidéo…' : 'Pas de vidéo'}</p>`;
+  const status = draft.video?.status || 'none';
+  const key = `${draft.videoId}:${status === 'ready' ? 'copy' : 'tiktok'}:${status}`;
+  if (key === shownVideo) return;
+  shownVideo = key;
+  const box = $('#sheet-video');
+  if (!draft.videoId) {
+    box.innerHTML = `<p class="placeholder">${draft.url ? 'Lecture de la vidéo…' : 'Pas de vidéo'}</p>`;
+    return;
+  }
+  if (status === 'ready') {
+    box.innerHTML = `<video src="/media/${escapeHTML(draft.videoId)}.mp4" ${draft.video.cover ? `poster="/media/${escapeHTML(draft.videoId)}.jpg"` : ''} controls autoplay loop playsinline preload="auto"></video>`;
+    return;
+  }
+  const notes = {
+    pending:'Copie de la vidéo en attente : lecteur TikTok en attendant.',
+    downloading:'Copie de la vidéo en cours : lecteur TikTok en attendant.',
+    failed:`Copie impossible (${escapeHTML(draft.video.error || 'erreur inconnue')}). <button type="button" class="link-btn" data-retry>Réessayer</button>`,
+  };
+  box.innerHTML = `<iframe src="${escapeHTML(embedUrl(draft.videoId))}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen title="Vidéo TikTok"></iframe>
+    ${notes[status] ? `<p class="video-note">${notes[status]}</p>` : ''}`;
 }
 
 function readSheet() {
@@ -251,26 +260,43 @@ function readSheet() {
   draft.notes = $('#f-notes').value.trim();
 }
 
+function credits(strat) {
+  return [
+    strat.author ? `@${strat.author}` : '',
+    strat.addedBy?.name ? `ajoutée par ${strat.addedBy.name} ${timeAgo(strat.addedAt)}` : '',
+    strat.updatedBy?.name && strat.updatedAt !== strat.addedAt ? `modifiée par ${strat.updatedBy.name} ${timeAgo(strat.updatedAt)}` : '',
+  ].filter(Boolean).join(' · ');
+}
+
 function openSheet(nextDraft, { isNew = false, source = '' } = {}) {
-  draft = { ...nextDraft, agents:[...nextDraft.agents], tags:[...nextDraft.tags] };
+  draft = { ...nextDraft, agents:[...nextDraft.agents], tags:[...nextDraft.tags], video:{ ...(nextDraft.video || {}) } };
   sheet.classList.toggle('is-new', isNew);
   $('#sheet-title').textContent = isNew ? 'Nouvelle strat' : (mapById(draft.map)?.name || 'Strat');
   $('#save-btn').textContent = isNew ? 'Ajouter' : 'Enregistrer';
   $('#sheet-error').textContent = '';
-  const credits = [
-    draft.author ? `@${draft.author}` : '',
-    nextDraft.addedBy?.name ? `ajoutée par ${nextDraft.addedBy.name} ${timeAgo(nextDraft.addedAt)}` : '',
-    nextDraft.updatedBy?.name && nextDraft.updatedAt !== nextDraft.addedAt ? `modifiée par ${nextDraft.updatedBy.name} ${timeAgo(nextDraft.updatedAt)}` : '',
-  ].filter(Boolean).join(' · ');
-  $('#sheet-source').textContent = source || credits;
+  $('#sheet-source').textContent = source || credits(nextDraft);
   fillSheet();
+  shownVideo = '';
   renderVideo();
   if (!sheet.open) sheet.showModal();
 }
 
 function openStrat(id) {
-  const strat = strats().find(item => item.id === id);
+  const strat = findById(id);
   if (strat) openSheet(strat);
+}
+
+/** Mise à jour en direct : la fiche ouverte suit l'état de la copie vidéo. */
+function refreshOpenSheet() {
+  if (!sheet.open || !draft?.id) return;
+  const strat = findById(draft.id);
+  if (!strat) {
+    sheet.close();
+    toast('Cette strat a été supprimée');
+    return;
+  }
+  draft.video = { ...strat.video };
+  renderVideo();
 }
 
 function redetect() {
@@ -292,21 +318,20 @@ async function saveSheet() {
   button.disabled = true;
   $('#sheet-error').textContent = '';
   try {
-    const author = by();
-    const now = Date.now();
     if (draft.id) {
-      await db.update(`${ITEMS}/${draft.id}`, { ...toRecord(draft), updatedBy:author, updatedAt:now });
+      const { item } = await api(`/api/strats/${draft.id}`, { method:'PATCH', body:editableFields(draft) });
+      state.items = { ...state.items, [item.id]:item };
       toast('Strat enregistrée');
     } else {
-      const duplicate = findByVideo(draft.videoId);
-      if (duplicate) {
+      const result = await createStrat(draft);
+      if (result.duplicateId) {
         toast('Ce TikTok est déjà dans la liste');
-        openStrat(duplicate.id);
+        openStrat(result.duplicateId);
         return;
       }
-      await db.push(ITEMS, { ...toRecord(draft), addedBy:author, addedAt:now, updatedBy:author, updatedAt:now });
-      toast('Strat ajoutée');
+      toast('Strat ajoutée : la vidéo est copiée sur le serveur');
     }
+    render();
     sheet.close();
   } catch (error) {
     $('#sheet-error').textContent = error.message;
@@ -318,11 +343,25 @@ async function saveSheet() {
 async function deleteStrat() {
   if (!draft?.id) return;
   const name = draft.title || 'cette strat';
-  if (!confirm(`Supprimer « ${name} » pour tout le monde ?`)) return;
+  if (!confirm(`Supprimer « ${name} » pour tout le monde ? La copie de la vidéo sera effacée.`)) return;
   try {
-    await db.remove(`${ITEMS}/${draft.id}`);
+    await api(`/api/strats/${draft.id}`, { method:'DELETE' });
+    const { [draft.id]:_removed, ...rest } = state.items;
+    state.items = rest;
+    render();
     sheet.close();
     toast('Strat supprimée');
+  } catch (error) {
+    $('#sheet-error').textContent = error.message;
+  }
+}
+
+async function retryVideo() {
+  if (!draft?.id) return;
+  try {
+    await api(`/api/strats/${draft.id}/retry`, { method:'POST' });
+    draft.video = { status:'pending' };
+    renderVideo();
   } catch (error) {
     $('#sheet-error').textContent = error.message;
   }
@@ -345,22 +384,13 @@ function setAddStatus(message, isError = false) {
   status.classList.toggle('is-error', isError);
 }
 
-async function ensureProfile() {
-  let asked = false;
-  try { asked = Boolean(sessionStorage.getItem('strats-asked-profile')); sessionStorage.setItem('strats-asked-profile', '1'); } catch { /* navigation privée */ }
-  if (!state.profile && !asked) {
-    state.profile = await pickProfile({ title:'Qui ajoute ?', subtitle:'Ton nom sera affiché sur les strats que tu ajoutes.' });
-  }
-}
-
 async function addOne(url) {
   openSheet(draftFromMeta({ url, videoId:'', author:'', description:'' }), { isNew:true, source:'Récupération du titre…' });
-  const meta = await fetchTikTokMeta(url, CONFIG.TIKTOK_ENDPOINT);
+  const meta = await fetchTikTokMeta(url);
   if (!sheet.open || draft.id || draft.url !== url) return;
-  const duplicate = findByVideo(meta.videoId);
-  if (duplicate) {
+  if (meta.existingId && findById(meta.existingId)) {
     toast('Ce TikTok est déjà dans la liste');
-    openStrat(duplicate.id);
+    openStrat(meta.existingId);
     return;
   }
   const next = draftFromMeta(meta);
@@ -374,17 +404,15 @@ async function addMany(urls) {
   let added = 0;
   let duplicates = 0;
   let untitled = 0;
-  const seen = new Set();
   for (const [index, url] of urls.entries()) {
     setAddStatus(`Ajout ${index + 1}/${urls.length}…`);
-    const meta = await fetchTikTokMeta(url, CONFIG.TIKTOK_ENDPOINT);
-    if (findByVideo(meta.videoId) || seen.has(meta.videoId || url)) { duplicates += 1; continue; }
-    seen.add(meta.videoId || url);
-    const author = by();
-    const now = Date.now();
-    await db.push(ITEMS, { ...toRecord(draftFromMeta(meta)), addedBy:author, addedAt:now, updatedBy:author, updatedAt:now });
+    const meta = await fetchTikTokMeta(url);
+    if (meta.existingId) { duplicates += 1; continue; }
+    const result = await createStrat(draftFromMeta(meta));
+    if (result.duplicateId) { duplicates += 1; continue; }
     added += 1;
     if (!meta.description) untitled += 1;
+    render();
   }
   setAddStatus([
     `${added} strat${added > 1 ? 's' : ''} ajoutée${added > 1 ? 's' : ''}`,
@@ -403,7 +431,6 @@ async function onAdd(event) {
   }
   input.value = '';
   setAddStatus('');
-  await ensureProfile();
   try {
     if (urls.length === 1) await addOne(urls[0]);
     else await addMany(urls);
@@ -424,7 +451,7 @@ function bindEvents() {
     const button = event.target.closest('[data-map]');
     if (!button) return;
     state.filters.map = button.dataset.map;
-    history.replaceState(null, '', state.filters.map ? `#${state.filters.map}` : location.pathname + location.search);
+    history.replaceState(null, '', state.filters.map ? `#${state.filters.map}` : location.pathname);
     render();
     if (matchMedia('(max-width:860px)').matches) $('#results').scrollIntoView({ behavior:'smooth', block:'start' });
   });
@@ -443,6 +470,10 @@ function bindEvents() {
     const card = event.target.closest('[data-id]');
     if (card) openStrat(card.dataset.id);
   });
+  // Couverture absente ou effacée : on garde le nom de la map (pas de onerror en ligne, à cause de la CSP).
+  $('#results').addEventListener('error', event => {
+    if (event.target.tagName === 'IMG') event.target.remove();
+  }, true);
 
   $('#f-side').addEventListener('click', event => {
     const button = event.target.closest('[data-side]');
@@ -475,38 +506,76 @@ function bindEvents() {
     draft.tags = draft.tags.includes(id) ? draft.tags.filter(tag => tag !== id) : [...draft.tags, id];
     chip.setAttribute('aria-pressed', String(draft.tags.includes(id)));
   });
+  $('#sheet-video').addEventListener('click', event => {
+    if (event.target.closest('[data-retry]')) retryVideo();
+  });
   $('#redetect').addEventListener('click', redetect);
   $('#sheet-form').addEventListener('submit', event => { event.preventDefault(); saveSheet(); });
   $('#delete-btn').addEventListener('click', deleteStrat);
   sheet.addEventListener('click', event => {
     if (event.target === sheet || event.target.closest('[data-close]')) sheet.close();
   });
-  sheet.addEventListener('close', () => { $('#sheet-video').innerHTML = ''; draft = null; });
+  sheet.addEventListener('close', () => { $('#sheet-video').innerHTML = ''; shownVideo = ''; draft = null; });
 
-  $('#profile-chip').addEventListener('click', () => pickProfile({ title:'Qui es-tu ?', subtitle:'Ton nom sera affiché sur les strats que tu ajoutes ou modifies.' }));
-  onProfileChange(profile => { state.profile = profile; renderProfileChip(profile); });
+  $('#profile-chip').addEventListener('click', async () => {
+    if (!confirm(`Connecté en tant que ${state.user?.name}. Se déconnecter ?`)) return;
+    await logout();
+    location.reload();
+  });
   addEventListener('hashchange', () => { state.filters.map = decodeURIComponent(location.hash.slice(1)); render(); });
+}
+
+/* ─── Connexion ───────────────────────────────────────────────────────── */
+
+const LOGIN_MESSAGES = {
+  refuse:'Ce compte Discord n’est pas sur le serveur OLYCITY. Demande une invitation, puis reconnecte-toi.',
+  annule:'Connexion annulée.',
+  erreur:'La connexion avec Discord a échoué, réessaie.',
+};
+
+function showLogin() {
+  const reason = new URLSearchParams(location.search).get('login');
+  $('#login-message').textContent = LOGIN_MESSAGES[reason] || '';
+  $('#login-message').hidden = !LOGIN_MESSAGES[reason];
+  $('#login').hidden = false;
+  $('#app').hidden = true;
 }
 
 /* ─── Démarrage ───────────────────────────────────────────────────────── */
 
-function start() {
+async function start() {
+  let user;
+  try {
+    user = await me();
+  } catch {
+    $('#login').hidden = true;
+    $('#app').hidden = false;
+    $('#results').innerHTML = '<p class="empty">Le serveur ne répond pas pour le moment. Réessaie dans un instant.</p>';
+    return;
+  }
+  if (!user) {
+    showLogin();
+    return;
+  }
+  if (location.search) history.replaceState(null, '', location.pathname + location.hash);
+  state.user = user;
+  $('#login').hidden = true;
+  $('#app').hidden = false;
+  renderUserChip();
   $('#f-status').innerHTML = STATUSES.map(status => `<button type="button" data-status="${status.id}">${escapeHTML(status.name)}</button>`).join('');
   fillFilterSelects();
   bindEvents();
   render();
-  db.subscribe(ITEMS, items => {
+  subscribe(items => {
     state.items = items || {};
     state.loaded = true;
     render();
+    refreshOpenSheet();
   }, {
+    onUnauthorized:() => location.reload(),
     onError:() => {
-      if (!state.loaded) $('#results').innerHTML = '<p class="empty">Connexion à la base impossible pour le moment. Réessaie dans un instant.</p>';
+      if (!state.loaded) $('#results').innerHTML = '<p class="empty">Connexion au serveur impossible pour le moment. Nouvel essai…</p>';
     },
-  });
-  loadMembers().then(currentProfile).then(profile => {
-    state.profile = profile;
-    renderProfileChip(profile);
   });
 }
 

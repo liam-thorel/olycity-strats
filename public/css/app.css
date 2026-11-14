@@ -160,3 +160,22 @@
   .grid-2 { grid-template-columns:1fr; }
   .brand em { display:none; }
 }
+
+/* ─── Connexion Discord ─── */
+.login { position:relative; z-index:1; flex:1; display:grid; place-items:center; padding:32px 16px; }
+.login-card { display:grid; gap:12px; width:min(440px, 100%); padding:28px 24px; text-align:center; }
+.login-card h1 { font:700 clamp(28px,6vw,38px)/1.1 var(--font-display); }
+.login-card p { color:var(--muted); }
+.login-message { padding:10px 12px; border:1px solid var(--red-mid); border-radius:8px; background:var(--red-low); color:var(--text) !important; font-size:13.5px; }
+.btn-discord { justify-self:center; min-height:46px; padding:0 22px; border-color:transparent; background:#5865f2; color:#fff; font-weight:700; }
+.btn-discord:hover { border-color:transparent; background:#4752c4; }
+
+/* ─── Vidéo (copie locale ou lecteur TikTok) ─── */
+.sheet-video video { width:100%; height:100%; max-height:calc(100dvh - 26px); background:#000; object-fit:contain; }
+.video-note { position:absolute; left:0; right:0; bottom:0; padding:8px 12px; background:rgba(7,8,12,.88); color:var(--muted); font-size:12px; text-align:center; }
+.pill.video-pending { color:var(--gold); }
+.pill.video-failed { color:var(--muted); }
+@media (max-width:860px) {
+  .sheet-video video { height:70dvh; }
+  .video-note { position:static; }
+}

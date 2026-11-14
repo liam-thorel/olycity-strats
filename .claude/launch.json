@@ -3,15 +3,9 @@
   "configurations": [
     {
       "name": "strats",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["--yes", "serve", "-l", "4175", "."],
-      "port": 4175
-    },
-    {
-      "name": "tiktok-worker",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["scripts/dev-worker.mjs"],
-      "port": 8787
+      "runtimeArgs": ["--env-file=.env.dev", "server/index.mjs"],
+      "port": 3100
     }
   ]
 }

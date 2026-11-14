@@ -1,7 +1,7 @@
 /**
  * Liens TikTok : extraction depuis un texte collé (message Discord…),
  * identifiant de vidéo, et récupération des infos (titre, auteur) via le
- * Worker `workers/tiktok`, avec l'oEmbed public de TikTok en secours.
+ * serveur (/api/meta), qui lit la page TikTok.
  */
 
 const TIKTOK_URL = /https?:\/\/(?:[a-z0-9-]+\.)*tiktok\.com\/[^\s<>"')\]]+/gi;
@@ -53,46 +53,27 @@ export const canonicalUrl = (videoId, author = '') =>
 export const embedUrl = videoId =>
   `https://www.tiktok.com/player/v1/${encodeURIComponent(videoId)}?description=1&music_info=0&rel=0&autoplay=1`;
 
-async function getJson(url, timeoutMs = 12_000) {
-  const response = await fetch(url, { signal:AbortSignal.timeout(timeoutMs) });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return response.json();
-}
-
 /**
- * Infos d'une vidéo. Ne lève jamais : renvoie au minimum ce que l'URL contient.
- * @returns {Promise<{ url:string, videoId:string, author:string, description:string, source:string }>}
+ * Infos d'une vidéo via le serveur (qui lit la page TikTok). Ne lève jamais :
+ * renvoie au minimum ce que l'URL contient.
+ * @returns {Promise<{ url, videoId, author, description, existingId, source }>}
  */
-export async function fetchTikTokMeta(rawUrl, endpoint = '') {
+export async function fetchTikTokMeta(rawUrl) {
   const url = cleanTikTokUrl(rawUrl);
-  const base = { url, videoId:videoIdFromUrl(url), author:authorFromUrl(url), description:'', source:'url' };
+  const base = { url, videoId:videoIdFromUrl(url), author:authorFromUrl(url), description:'', existingId:'', source:'url' };
   if (!url) return base;
-
-  if (endpoint) {
-    try {
-      const meta = await getJson(`${endpoint.replace(/\/$/, '')}/meta?url=${encodeURIComponent(url)}`);
-      if (meta?.videoId) {
-        return {
-          url:canonicalUrl(meta.videoId, meta.author) || url,
-          videoId:String(meta.videoId),
-          author:meta.author || base.author,
-          description:meta.description || '',
-          source:'worker',
-        };
-      }
-    } catch { /* on tente l'oEmbed */ }
-  }
-
   try {
-    const oembed = await getJson(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`, 8_000);
-    const videoId = String(oembed?.embed_product_id || '') || base.videoId;
-    const author = oembed?.author_unique_id || base.author;
+    const response = await fetch(`/api/meta?url=${encodeURIComponent(url)}`, { signal:AbortSignal.timeout(20_000) });
+    if (!response.ok) return base;
+    const meta = await response.json();
+    if (!meta?.videoId) return base;
     return {
-      url:canonicalUrl(videoId, author) || url,
-      videoId,
-      author,
-      description:oembed?.title || '',
-      source:'oembed',
+      url:meta.url || canonicalUrl(meta.videoId, meta.author) || url,
+      videoId:String(meta.videoId),
+      author:meta.author || base.author,
+      description:meta.description || '',
+      existingId:meta.existingId || '',
+      source:'server',
     };
   } catch {
     return base;

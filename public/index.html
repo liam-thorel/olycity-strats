@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Tomorrow:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="sdk/olycity.css">
+  <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
@@ -26,15 +26,25 @@
       <img src="assets/logo.svg" alt="" width="28" height="31">
       <span>OLY<b>CITY</b> <em>Strats</em></span>
     </a>
-    <button class="profile-chip" id="profile-chip" type="button" aria-label="Changer de profil"><span>…</span></button>
+    <button class="profile-chip" id="profile-chip" type="button" aria-label="Compte Discord, cliquer pour se déconnecter" hidden></button>
   </header>
 
-  <main class="page">
+  <main class="login" id="login" hidden>
+    <section class="login-card card">
+      <span class="kicker">Rainbow Six Siege</span>
+      <h1>Les strats du groupe</h1>
+      <p>Réservé aux membres du serveur Discord OLYCITY.</p>
+      <p class="login-message" id="login-message" role="alert" hidden></p>
+      <a class="btn btn-discord" href="/auth/login">Se connecter avec Discord</a>
+    </section>
+  </main>
+
+  <main class="page" id="app" hidden>
     <section class="hero">
       <div>
         <span class="kicker">Rainbow Six Siege</span>
         <h1>Les strats du groupe</h1>
-        <p>Colle un ou plusieurs liens TikTok : la map, le côté et les agents sont devinés depuis le titre. Vous complétez le reste.</p>
+        <p>Colle un ou plusieurs liens TikTok : la map, le côté et les agents sont devinés depuis le titre, et la vidéo est copiée sur notre serveur. Vous complétez le reste.</p>
       </div>
       <form class="add-form card" id="add-form" autocomplete="off">
         <label for="add-input">Ajouter des TikToks</label>

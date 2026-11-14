@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cleanTitle, detectStrat } from '../js/detect.mjs';
-import { AGENTS, MAPS } from '../js/r6.mjs';
+import { cleanTitle, detectStrat } from '../public/js/detect.mjs';
+import { AGENTS, MAPS } from '../public/js/r6.mjs';
 
 test('détecte map, côté et agents dans un titre typique', () => {
   const result = detectStrat('Strat ATK sur Bank avec Thermite et Ash 🔥 #r6 #rainbowsixsiege');

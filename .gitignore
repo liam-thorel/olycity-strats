@@ -1,5 +1,6 @@
-_site/
 node_modules/
-.wrangler/
-.dev.vars
+data/
+data-dev/
+.env
 .DS_Store
+.wrangler/

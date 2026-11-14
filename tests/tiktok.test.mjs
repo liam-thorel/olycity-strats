@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { extractTikTokUrls, videoIdFromUrl } from '../js/tiktok.mjs';
-import worker, { extractItem, getMeta, itemToMeta } from '../workers/tiktok/worker.mjs';
+import { extractTikTokUrls, videoIdFromUrl } from '../public/js/tiktok.mjs';
+import { extractItem, getMeta, itemToMeta } from '../server/tiktok-page.mjs';
 
 test('extrait les liens TikTok d’un message', () => {
   const text = `regarde ça https://vm.tiktok.com/ZMabc123/ et https://www.tiktok.com/@pro.r6/video/7412345678901234567?is_from_webapp=1&sender_device=pc.
@@ -44,18 +44,10 @@ test('suit les redirections des liens courts sans quitter tiktok.com', async () 
   };
   const meta = await getMeta('https://vm.tiktok.com/ZMabc/', fakeFetch);
   assert.equal(meta.videoId, ITEM.id);
+  assert.equal(meta.url, `https://www.tiktok.com/@pro.r6/video/${ITEM.id}`);
   assert.equal(calls.length, 2);
 
   const evil = async () => new Response(null, { status:302, headers:{ location:'http://169.254.169.254/' } });
   await assert.rejects(getMeta('https://vm.tiktok.com/ZMabc/', evil), /hors de tiktok/);
 });
 
-test('refuse les liens hors TikTok et applique le CORS', async () => {
-  const request = new Request('https://w.dev/meta?url=https%3A%2F%2Fevil.com', { headers:{ Origin:'https://strats.olycity.fr' } });
-  const response = await worker.fetch(request, { SITE_ORIGIN:'https://strats.olycity.fr' });
-  assert.equal(response.status, 400);
-  assert.equal(response.headers.get('Access-Control-Allow-Origin'), 'https://strats.olycity.fr');
-
-  const other = await worker.fetch(new Request('https://w.dev/', { headers:{ Origin:'https://evil.com' } }), { SITE_ORIGIN:'https://strats.olycity.fr' });
-  assert.equal(other.headers.get('Access-Control-Allow-Origin'), null);
-});

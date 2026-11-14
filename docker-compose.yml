@@ -1,0 +1,20 @@
+# Mini PC (ak1) : docker compose up -d --build
+# Accès public : tunnel Cloudflare `ak1` (conteneur cloudflared du bot musique),
+# route strats.olycity.fr → http://olycity-strats:3100
+services:
+  strats:
+    build: .
+    container_name: olycity-strats
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      # strats.json, sessions.json et media/ (vidéos) : c'est ce dossier qui grossit.
+      - ./data:/app/data
+    ports:
+      - "127.0.0.1:3100:3100" # jamais exposé directement : l'accès passe par le tunnel
+    networks: [default, tunnel]
+
+networks:
+  tunnel:
+    external: true
+    name: discord-music-bot_default

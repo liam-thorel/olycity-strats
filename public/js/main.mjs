@@ -564,6 +564,8 @@ const PENDING_SHARE = 'strats-pending-share';
 function stashShare() {
   const params = new URLSearchParams(location.search);
   const shared = ['add', 'url', 'text', 'title'].map(key => params.get(key) || '').join(' ').trim();
+  // Raccourci iPhone mal réglé : il ouvre /?add= sans rien derrière.
+  if (!shared && (params.has('add') || location.pathname === '/share')) state.emptyShare = true;
   if (!shared) return;
   try { localStorage.setItem(PENDING_SHARE, shared); } catch { /* navigation privée : traité tout de suite si connecté */ }
   state.pendingShare = shared;
@@ -583,6 +585,11 @@ async function handleShareAndLinks() {
   const strat = new URLSearchParams(location.search).get('strat');
   const shared = takePendingShare();
   history.replaceState(null, '', `/${location.hash}`);
+  if (state.emptyShare && !shared) {
+    state.emptyShare = false;
+    toast('Le partage est arrivé vide : dans le raccourci, utilise la variable « URL encodée » (voir 📲 l’aide)');
+    return;
+  }
   if (shared) {
     const urls = extractTikTokUrls(shared);
     if (!urls.length) toast('Aucun lien TikTok dans ce partage');

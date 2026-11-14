@@ -53,6 +53,7 @@
           <button class="btn btn-primary" type="submit">Ajouter</button>
         </div>
         <p class="add-status" id="add-status" role="status" aria-live="polite"></p>
+        <button type="button" class="link-btn add-help" id="help-btn">📲 Ajouter directement depuis TikTok</button>
       </form>
     </section>
 
@@ -137,6 +138,47 @@
         </footer>
       </div>
     </form>
+  </dialog>
+
+  <dialog class="sheet help" id="help" aria-labelledby="help-title">
+    <div class="help-body">
+      <header class="sheet-head">
+        <h2 id="help-title">Ajouter depuis TikTok</h2>
+        <button class="icon-btn" type="button" data-close aria-label="Fermer">✕</button>
+      </header>
+
+      <section class="help-card">
+        <h3>💬 Par Discord <small>iPhone et Android</small></h3>
+        <p>Dans TikTok : <b>Partager → Discord → salon <code>strats-r6</code></b> du serveur OLYCITY.
+          Le bot ajoute la strat (titre, map, agents, copie de la vidéo) et répond avec le lien vers la fiche.
+          Plusieurs liens dans un même message marchent aussi.</p>
+      </section>
+
+      <section class="help-card">
+        <h3>🤖 Android <small>appli installée</small></h3>
+        <ol>
+          <li>Installe le site : <button type="button" class="btn btn-small" id="install-btn" hidden>Installer l'appli</button>
+            <span id="install-manual">dans Chrome, menu ⋮ → <b>Ajouter à l'écran d'accueil</b> (ou « Installer l'application »).</span></li>
+          <li>Dans TikTok : <b>Partager → Plus</b> (ou « Autres ») → <b>Strats R6</b>. La fiche s'ouvre préremplie.</li>
+        </ol>
+      </section>
+
+      <section class="help-card">
+        <h3>🍎 iPhone <small>raccourci, une seule fois</small></h3>
+        <ol>
+          <li>Ouvre <b>strats.olycity.fr</b> dans <b>Safari</b> et connecte-toi avec Discord.</li>
+          <li>App <b>Raccourcis</b> → <b>+</b> → nomme-le « Ajouter aux strats ».</li>
+          <li>Touche <b>ⓘ</b> → active <b>Afficher dans la feuille de partage</b>.</li>
+          <li>Ajoute l'action <b>Encoder en URL</b> (entrée : <i>Entrée du raccourci</i>).</li>
+          <li>Ajoute l'action <b>Ouvrir les URL</b> et tape <code id="shortcut-prefix">https://strats.olycity.fr/?add=</code>
+            <button type="button" class="link-btn" id="copy-prefix">copier</button>
+            suivi de la variable <i>Texte encodé en URL</i>.</li>
+          <li>Dans TikTok : <b>Partager → Plus</b> (…) → <b>Ajouter aux strats</b>.</li>
+        </ol>
+      </section>
+
+      <p class="help-foot">Sinon : <b>Copier le lien</b> dans TikTok, puis colle-le dans le champ « Ajouter ».</p>
+    </div>
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>

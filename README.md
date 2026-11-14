@@ -10,6 +10,13 @@ l'exclure du serveur ; son accès tombe dans les 6 heures (`RECHECK_HOURS`).
 
 ## Utilisation
 
+- **Depuis TikTok** (bouton « 📲 Ajouter directement depuis TikTok » sur le site) :
+  - **Discord** : Partager → Discord → salon `⌊🎯⌉strats-r6`. Le serveur lit ce salon
+    toutes les 15 s avec OLYBOT, ajoute chaque TikTok et répond avec le lien.
+  - **Android** : le site s'installe comme appli (PWA) et apparaît dans Partager
+    (`share_target` → `/share`).
+  - **iPhone** : raccourci Raccourcis qui ouvre `https://strats.olycity.fr/?add=<lien>`.
+  Un partage reçu avant connexion est gardé le temps de se connecter avec Discord.
 - **Ajouter** : coller un ou plusieurs liens TikTok (un message Discord entier
   marche aussi). Avec un seul lien, la fiche s'ouvre préremplie pour vérifier ;
   avec plusieurs, tout est ajouté d'un coup en « À tester ».
@@ -40,6 +47,7 @@ olycity-strats/
 │   ├── auth.mjs             Connexion Discord, sessions, revérification
 │   ├── store.mjs            data/strats.json
 │   ├── downloader.mjs       Copies yt-dlp dans data/media/
+│   ├── discord-watch.mjs    Salon Discord strats-r6 → strats
 │   └── tiktok-page.mjs      Lecture du titre d'un TikTok
 ├── Dockerfile, docker-compose.yml
 ├── deploy/deploy.sh         Envoi sur le mini PC

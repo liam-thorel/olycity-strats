@@ -8,6 +8,7 @@ import { createServer } from 'node:http';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Auth, parseCookies } from './auth.mjs';
+import { DiscordWatcher } from './discord-watch.mjs';
 import { Downloader, mediaPath } from './downloader.mjs';
 import { Store, isTikTokUrl } from './store.mjs';
 import { HttpError, getMeta } from './tiktok-page.mjs';
@@ -27,6 +28,9 @@ export function loadConfig(env = process.env) {
     RECHECK_HOURS:Number(env.RECHECK_HOURS || 6),
     DEV_LOGIN:env.DEV_LOGIN === '1',
     YT_DLP:env.YT_DLP || 'yt-dlp',
+    // Salon Discord surveillé (facultatif) : jeton d'un bot avec l'intent Message Content.
+    DISCORD_BOT_TOKEN:env.DISCORD_BOT_TOKEN || '',
+    DISCORD_STRATS_CHANNEL_ID:env.DISCORD_STRATS_CHANNEL_ID || '',
   };
   if (config.DEV_LOGIN && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(config.PUBLIC_URL)) {
     throw new Error('DEV_LOGIN=1 n’est autorisé qu’en local.');
@@ -254,6 +258,12 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const config = loadConfig();
   const app = createApp(config);
   app.downloader.start();
+  if (config.DISCORD_BOT_TOKEN && config.DISCORD_STRATS_CHANNEL_ID) {
+    new DiscordWatcher({
+      token:config.DISCORD_BOT_TOKEN, channelId:config.DISCORD_STRATS_CHANNEL_ID,
+      store:app.store, downloader:app.downloader, publicUrl:config.PUBLIC_URL, dataDir:config.DATA_DIR,
+    }).start();
+  }
   app.server.listen(config.PORT, () => console.log(`OLYCITY Strats sur ${config.PUBLIC_URL} (port ${config.PORT})`));
   const stop = () => {
     app.flush();

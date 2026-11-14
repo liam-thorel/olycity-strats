@@ -179,3 +179,17 @@
   .sheet-video video { height:70dvh; }
   .video-note { position:static; }
 }
+
+/* ─── Aide « Ajouter depuis TikTok » ─── */
+.add-help { justify-self:start; margin:0; }
+.help { width:min(620px, calc(100% - 24px)); }
+.help-body { display:grid; gap:14px; max-height:calc(100dvh - 26px); padding:18px 20px 22px; overflow:auto; }
+.help-card { display:grid; gap:8px; padding:14px 16px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surf2); }
+.help-card h3 { display:flex; align-items:baseline; gap:8px; font:700 15px var(--font-display); }
+.help-card h3 small { color:var(--muted); font:600 12px var(--font-body); }
+.help-card p, .help-card li { color:var(--muted); font-size:14px; line-height:1.55; }
+.help-card b { color:var(--text); }
+.help-card ol { display:grid; gap:6px; padding-left:20px; }
+.help code { padding:1px 6px; border-radius:4px; background:var(--surf3); color:var(--cyan); font-size:12.5px; word-break:break-all; }
+.help-foot { color:var(--dim); font-size:13px; }
+.btn-small { min-height:32px; padding:0 12px; font-size:12px; }

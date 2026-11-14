@@ -541,9 +541,83 @@ function showLogin() {
   $('#app').hidden = true;
 }
 
+/* ─── Partage depuis TikTok (Android : appli installée, iPhone : raccourci) ── */
+
+const PENDING_SHARE = 'strats-pending-share';
+
+/** Texte partagé (/share?text=…&url=… ou /?add=…), mis de côté pour survivre à la connexion Discord. */
+function stashShare() {
+  const params = new URLSearchParams(location.search);
+  const shared = ['add', 'url', 'text', 'title'].map(key => params.get(key) || '').join(' ').trim();
+  if (!shared) return;
+  try { localStorage.setItem(PENDING_SHARE, shared); } catch { /* navigation privée : traité tout de suite si connecté */ }
+  state.pendingShare = shared;
+}
+
+function takePendingShare() {
+  let shared = state.pendingShare || '';
+  try {
+    shared = localStorage.getItem(PENDING_SHARE) || shared;
+    localStorage.removeItem(PENDING_SHARE);
+  } catch { /* stockage indisponible */ }
+  state.pendingShare = '';
+  return shared;
+}
+
+async function handleShareAndLinks() {
+  const strat = new URLSearchParams(location.search).get('strat');
+  const shared = takePendingShare();
+  history.replaceState(null, '', `/${location.hash}`);
+  if (shared) {
+    const urls = extractTikTokUrls(shared);
+    if (!urls.length) toast('Aucun lien TikTok dans ce partage');
+    else if (urls.length === 1) await addOne(urls[0]);
+    else await addMany(urls);
+  } else if (strat) {
+    if (findById(strat)) openStrat(strat);
+    else toast('Cette strat n’existe plus');
+  }
+}
+
+/* ─── Installation et aide ────────────────────────────────────────────── */
+
+let installEvent = null;
+
+function bindHelp() {
+  const help = $('#help');
+  $('#help-btn').addEventListener('click', () => help.showModal());
+  help.addEventListener('click', event => {
+    if (event.target === help || event.target.closest('[data-close]')) help.close();
+  });
+  $('#shortcut-prefix').textContent = `${location.origin}/?add=`;
+  $('#copy-prefix').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText($('#shortcut-prefix').textContent);
+      toast('Adresse copiée');
+    } catch {
+      toast('Copie impossible : sélectionne le texte à la main');
+    }
+  });
+  addEventListener('beforeinstallprompt', event => {
+    event.preventDefault();
+    installEvent = event;
+    $('#install-btn').hidden = false;
+    $('#install-manual').hidden = true;
+  });
+  $('#install-btn').addEventListener('click', async () => {
+    if (!installEvent) return;
+    installEvent.prompt();
+    await installEvent.userChoice.catch(() => null);
+    installEvent = null;
+    $('#install-btn').hidden = true;
+  });
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
+
 /* ─── Démarrage ───────────────────────────────────────────────────────── */
 
 async function start() {
+  stashShare();
   let user;
   try {
     user = await me();
@@ -557,7 +631,6 @@ async function start() {
     showLogin();
     return;
   }
-  if (location.search) history.replaceState(null, '', location.pathname + location.hash);
   state.user = user;
   $('#login').hidden = true;
   $('#app').hidden = false;
@@ -565,12 +638,18 @@ async function start() {
   $('#f-status').innerHTML = STATUSES.map(status => `<button type="button" data-status="${status.id}">${escapeHTML(status.name)}</button>`).join('');
   fillFilterSelects();
   bindEvents();
+  bindHelp();
   render();
+  let first = true;
   subscribe(items => {
     state.items = items || {};
     state.loaded = true;
     render();
     refreshOpenSheet();
+    if (first) {
+      first = false;
+      handleShareAndLinks().catch(error => setAddStatus(error.message, true));
+    }
   }, {
     onUnauthorized:() => location.reload(),
     onError:() => {

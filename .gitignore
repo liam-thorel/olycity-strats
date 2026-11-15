@@ -4,3 +4,5 @@ data-dev/
 .env
 .DS_Store
 .wrangler/
+tiktok-state.json
+inbox/node_modules/

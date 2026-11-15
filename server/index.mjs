@@ -8,7 +8,10 @@ import { createServer } from 'node:http';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Auth, parseCookies } from './auth.mjs';
+import { timingSafeEqual } from 'node:crypto';
+import { extractTikTokUrls } from '../public/js/tiktok.mjs';
 import { DiscordWatcher } from './discord-watch.mjs';
+import { ingestUrl } from './ingest.mjs';
 import { Downloader, mediaPath } from './downloader.mjs';
 import { Store, isTikTokUrl } from './store.mjs';
 import { HttpError, getMeta } from './tiktok-page.mjs';
@@ -31,6 +34,8 @@ export function loadConfig(env = process.env) {
     // Salon Discord surveillé (facultatif) : jeton d'un bot avec l'intent Message Content.
     DISCORD_BOT_TOKEN:env.DISCORD_BOT_TOKEN || '',
     DISCORD_STRATS_CHANNEL_ID:env.DISCORD_STRATS_CHANNEL_ID || '',
+    // Robot du groupe TikTok (conteneur « inbox ») : jeton partagé, vide = entrée fermée.
+    INGEST_TOKEN:env.INGEST_TOKEN || '',
   };
   if (config.DEV_LOGIN && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(config.PUBLIC_URL)) {
     throw new Error('DEV_LOGIN=1 n’est autorisé qu’en local.');
@@ -230,6 +235,24 @@ export function createApp(config, { fetchImpl = fetch, log = console } = {}) {
     const path = url.pathname;
 
     if (path === '/health') return send(res, 200, { ok:true });
+
+    // Entrée interne du robot du groupe TikTok : jamais par le tunnel (donc jamais depuis internet), et avec jeton.
+    if (path === '/internal/ingest' && req.method === 'POST') {
+      if (req.headers['cf-connecting-ip'] || req.headers['cf-ray'] || !config.INGEST_TOKEN) throw new HttpError(404, 'Route inconnue');
+      const given = Buffer.from(String(req.headers.authorization || '').replace(/^Bearer\s+/i, ''));
+      const expected = Buffer.from(config.INGEST_TOKEN);
+      if (given.length !== expected.length || !timingSafeEqual(given, expected)) throw new HttpError(401, 'Jeton invalide');
+      const body = await readJson(req);
+      const sender = String(body.sender || '').trim().slice(0, 40);
+      const user = { id:'tiktok-group', name:sender ? `${sender} (groupe TikTok)` : 'Groupe TikTok' };
+      const urls = extractTikTokUrls((Array.isArray(body.urls) ? body.urls : []).join(' ')).slice(0, 30);
+      const results = [];
+      for (const url of urls) {
+        const result = await ingestUrl(url, user, { store, downloader, fetchImpl });
+        results.push({ url, status:result.status, id:result.item?.id || '' });
+      }
+      return send(res, 200, { results });
+    }
 
     if (path === '/auth/login') {
       if (config.DEV_LOGIN) return redirect(res, '/', auth.devLogin());

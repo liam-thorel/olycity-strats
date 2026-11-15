@@ -243,3 +243,29 @@ test('extraire plusieurs passages d’une même vidéo en strats séparées', as
   assert.equal(again.status, 409);
   assert.equal((await again.json()).id, source.id);
 });
+
+test('entrée interne du robot TikTok : jeton obligatoire, jamais par le tunnel', async () => {
+  const config = loadConfig({ PUBLIC_URL:'http://localhost:3100', DATA_DIR:tempDir(), DEV_LOGIN:'1', INGEST_TOKEN:'secret-de-test' });
+  const page = `<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__">${JSON.stringify({ __DEFAULT_SCOPE__:{ 'webapp.video-detail':{ itemInfo:{ itemStruct:{
+    id:'7400000000000000099', desc:'Setup Mira cocktail #r6', author:{ uniqueId:'pro' },
+  } } } } })}</script>`;
+  const app = createApp(config, { log:{}, fetchImpl:async () => new Response(page, { status:200 }) });
+  app.downloader.enqueue = () => {};
+  const url = await listen(app);
+  const ingest = (headers, body = { urls:['https://www.tiktok.com/@i/video/7400000000000000099'], sender:'Nico' }) =>
+    fetch(`${url}/internal/ingest`, { method:'POST', headers:{ 'content-type':'application/json', ...headers }, body:JSON.stringify(body) });
+  try {
+    assert.equal((await ingest({})).status, 401);
+    assert.equal((await ingest({ authorization:'Bearer faux' })).status, 401);
+    assert.equal((await ingest({ authorization:'Bearer secret-de-test', 'cf-connecting-ip':'1.2.3.4' })).status, 404);
+    const ok = await (await ingest({ authorization:'Bearer secret-de-test' })).json();
+    assert.equal(ok.results[0].status, 'added');
+    const item = app.store.get(ok.results[0].id);
+    assert.equal(item.map, 'kafe');
+    assert.equal(item.addedBy.name, 'Nico (groupe TikTok)');
+    const again = await (await ingest({ authorization:'Bearer secret-de-test' })).json();
+    assert.equal(again.results[0].status, 'exists');
+  } finally {
+    stop(app);
+  }
+});

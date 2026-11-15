@@ -1,0 +1,13 @@
+{
+  "name": "olycity-strats-inbox",
+  "private": true,
+  "type": "module",
+  "description": "Robot qui lit le groupe TikTok et ajoute les strats partagées",
+  "scripts": {
+    "login": "node login.mjs",
+    "start": "node reader.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "1.64.1"
+  }
+}

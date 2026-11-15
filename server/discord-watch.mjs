@@ -7,11 +7,10 @@
  * 15 s, avec le jeton d'OLYBOT (intent « Message Content » activé).
  */
 import { join } from 'node:path';
-import { cleanTitle, detectStrat } from '../public/js/detect.mjs';
 import { agentById, mapById, sideById } from '../public/js/r6.mjs';
-import { extractTikTokUrls, videoIdFromUrl } from '../public/js/tiktok.mjs';
+import { extractTikTokUrls } from '../public/js/tiktok.mjs';
+import { ingestUrl } from './ingest.mjs';
 import { JsonFile } from './store.mjs';
-import { getMeta } from './tiktok-page.mjs';
 
 const DISCORD_API = 'https://discord.com/api/v10';
 const SUPPRESS_EMBEDS = 1 << 2;
@@ -120,23 +119,9 @@ export class DiscordWatcher {
   link(item) { return `<${this.publicUrl}/?strat=${item.id}>`; }
 
   async addUrl(url, user) {
-    let meta;
-    try {
-      meta = await getMeta(url, this.fetch);
-    } catch {
-      const videoId = videoIdFromUrl(url);
-      if (!videoId) return `⚠️ Je n'arrive pas à lire ce TikTok : ${url}`;
-      meta = { videoId, author:(/\/@([^/?#]+)/.exec(url) || [])[1] || '', description:'', url };
-    }
-    const existing = this.store.findByVideo(meta.videoId);
-    if (existing) return `↪️ Déjà dans les strats : ${detectionLine(existing)} ${this.link(existing)}`;
-    const detected = detectStrat(meta.description);
-    const item = this.store.create(
-      { url:meta.url || url, videoId:meta.videoId, author:meta.author },
-      { title:cleanTitle(meta.description), description:meta.description, status:'todo', notes:'', ...detected },
-      user,
-    );
-    this.downloader.enqueue(item.id);
-    return `✅ Ajoutée : ${detectionLine(item)} ${this.link(item)}`;
+    const result = await ingestUrl(url, user, { store:this.store, downloader:this.downloader, fetchImpl:this.fetch });
+    if (result.status === 'unreadable') return `⚠️ Je n'arrive pas à lire ce TikTok : ${url}`;
+    if (result.status === 'exists') return `↪️ Déjà dans les strats : ${detectionLine(result.item)} ${this.link(result.item)}`;
+    return `✅ Ajoutée : ${detectionLine(result.item)} ${this.link(result.item)}`;
   }
 }

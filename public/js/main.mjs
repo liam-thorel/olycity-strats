@@ -43,6 +43,7 @@ function draftFromMeta(meta) {
 const editableFields = draft => ({
   title:draft.title, description:draft.description, map:draft.map, side:draft.side, site:draft.site,
   agents:draft.agents, tags:draft.tags, status:draft.status, notes:draft.notes,
+  clipStart:draft.clipStart || 0, clipEnd:draft.clipEnd || 0,
 });
 
 async function createStrat(draft) {
@@ -138,6 +139,7 @@ function cardHTML(strat) {
   const status = statusById(strat.status);
   const agents = strat.agents.map(id => agentById(id) || { id, name:id, side:'' });
   const preview = strat.video?.status === 'ready' ? ` data-preview="${escapeHTML(strat.videoId)}"` : '';
+  const cut = strat.clipStart || strat.clipEnd;
   return `<button type="button" class="strat${isNew(strat) ? ' is-new' : ''}" data-id="${escapeHTML(strat.id)}"${preview}>
     <div class="strat-cover">${coverHTML(strat)}
       <div class="strat-badges">
@@ -145,6 +147,7 @@ function cardHTML(strat) {
         ${side ? `<span class="pill ${side.id}">${side.short}</span>` : ''}
         ${strat.site ? `<span class="pill site" title="${escapeHTML(strat.site)}">${escapeHTML(shortSite(strat.site))}</span>` : ''}
         ${VIDEO_BADGES[strat.video?.status] || ''}
+        ${cut ? `<span class="pill clip-pill" title="Extrait ${formatTime(strat.clipStart)} → ${strat.clipEnd ? formatTime(strat.clipEnd) : 'fin'}">✂️</span>` : ''}
         ${status ? `<span class="pill status-${status.id}">${escapeHTML(status.name)}</span>` : ''}
       </div>
     </div>
@@ -280,6 +283,7 @@ function fillSheet() {
   $('#f-transcript-box').hidden = !draft.transcript;
   renderAutoMarks();
   renderSheetChoices();
+  renderClip();
 }
 
 /** « ✨ auto » à côté des champs complétés depuis la vidéo, tant que personne ne les a retouchés. */
@@ -305,7 +309,9 @@ function renderVideo() {
     return;
   }
   if (status === 'ready') {
-    box.innerHTML = `<video src="/media/${escapeHTML(draft.videoId)}.mp4" ${draft.video.cover ? `poster="/media/${escapeHTML(draft.videoId)}.jpg?v=${Number(draft.video.v) || 0}"` : ''} controls autoplay loop playsinline preload="auto"></video>`;
+    box.innerHTML = `<video src="/media/${escapeHTML(draft.videoId)}.mp4" ${draft.video.cover ? `poster="/media/${escapeHTML(draft.videoId)}.jpg?v=${Number(draft.video.v) || 0}"` : ''} controls autoplay playsinline preload="auto"></video>`;
+    wireClip(box.querySelector('video'), () => draft);
+    renderClip();
     return;
   }
   const notes = {
@@ -315,6 +321,76 @@ function renderVideo() {
   };
   box.innerHTML = `<iframe src="${escapeHTML(embedUrl(draft.videoId))}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen title="Vidéo TikTok"></iframe>
     ${notes[status] ? `<p class="video-note">${notes[status]}</p>` : ''}`;
+}
+
+/* ─── Découpe (extrait lu en boucle, la vidéo reste entière) ──────────── */
+
+const formatTime = value => {
+  const total = Math.max(0, Number(value) || 0);
+  const minutes = Math.floor(total / 60);
+  const rest = (total - minutes * 60).toFixed(1).padStart(4, '0');
+  return `${minutes}:${rest}`;
+};
+
+/**
+ * Lecture limitée à [clipStart, clipEnd] : départ au début de l'extrait, retour au
+ * début en atteignant la fin. On peut toujours chercher ailleurs à la main (pour
+ * régler un nouveau début), la boucle reprend à la fin de l'extrait.
+ */
+function wireClip(video, source) {
+  if (!video) return;
+  const range = () => ({ start:Number(source()?.clipStart) || 0, end:Number(source()?.clipEnd) || 0 });
+  video.addEventListener('loadedmetadata', () => {
+    const { start } = range();
+    if (start && start < video.duration) video.currentTime = start;
+  });
+  video.addEventListener('timeupdate', () => {
+    const { start, end } = range();
+    if (end && video.currentTime >= end) video.currentTime = start;
+  });
+  video.addEventListener('ended', () => {
+    video.currentTime = range().start;
+    video.play().catch(() => {});
+  });
+}
+
+function renderClip() {
+  const box = $('#clip-box');
+  const ready = draft?.video?.status === 'ready';
+  box.hidden = !ready;
+  if (!ready) return;
+  const start = Number(draft.clipStart) || 0;
+  const end = Number(draft.clipEnd) || 0;
+  const cut = start || end;
+  $('#clip-times').textContent = cut ? `${formatTime(start)} → ${end ? formatTime(end) : 'fin'}` : 'Vidéo entière';
+  $('#clip-times').classList.toggle('is-cut', Boolean(cut));
+  $('#clip-reset').hidden = !cut;
+}
+
+function setClip(which) {
+  const video = $('#sheet-video video');
+  if (!video || !draft) return;
+  const now = Math.round(video.currentTime * 10) / 10;
+  if (which === 'start') {
+    draft.clipStart = now;
+    if (draft.clipEnd && draft.clipEnd <= now) draft.clipEnd = 0;
+  } else {
+    if (now <= (Number(draft.clipStart) || 0)) {
+      toast('La fin doit être après le début de l’extrait');
+      return;
+    }
+    draft.clipEnd = now;
+    video.currentTime = Number(draft.clipStart) || 0;
+  }
+  renderClip();
+  toast('Extrait réglé : pense à enregistrer');
+}
+
+function resetClip() {
+  if (!draft) return;
+  draft.clipStart = 0;
+  draft.clipEnd = 0;
+  renderClip();
 }
 
 function readSheet() {
@@ -638,8 +714,9 @@ function bindHoverPreview() {
     const card = event.target.closest('[data-preview]');
     if (!card || card.querySelector('video.preview')) return;
     const video = document.createElement('video');
-    Object.assign(video, { muted:true, loop:true, playsInline:true, autoplay:true, preload:'auto', className:'preview' });
+    Object.assign(video, { muted:true, playsInline:true, autoplay:true, preload:'auto', className:'preview' });
     video.src = `/media/${card.dataset.preview}.mp4`;
+    wireClip(video, () => findById(card.dataset.id));
     card.querySelector('.strat-cover').append(video);
   });
   results.addEventListener('mouseout', event => {
@@ -732,6 +809,9 @@ function bindEvents() {
     event.preventDefault();
   }, { passive:false });
   $('#redetect').addEventListener('click', redetect);
+  $('#clip-start').addEventListener('click', () => setClip('start'));
+  $('#clip-end').addEventListener('click', () => setClip('end'));
+  $('#clip-reset').addEventListener('click', resetClip);
   bindSiteCombo();
   bindHoverPreview();
   $('#sheet-form').addEventListener('submit', event => { event.preventDefault(); saveSheet(); });

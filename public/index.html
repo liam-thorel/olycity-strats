@@ -90,6 +90,17 @@
         </header>
         <p class="sheet-source" id="sheet-source"></p>
 
+        <div class="field clip" id="clip-box" hidden>
+          <span class="label">✂️ Découper la vidéo</span>
+          <div class="clip-row">
+            <button type="button" class="btn btn-small" id="clip-start">⏮ Début ici</button>
+            <span class="clip-times" id="clip-times">Vidéo entière</span>
+            <button type="button" class="btn btn-small" id="clip-end">Fin ici ⏭</button>
+          </div>
+          <p class="clip-hint">Mets la vidéo au bon moment puis touche « Début ici » ou « Fin ici » : la fiche ne lira plus que ce passage, en boucle.
+            <button type="button" class="link-btn" id="clip-reset" hidden>Garder toute la vidéo</button></p>
+        </div>
+
         <div class="field">
           <label for="f-title">Titre</label>
           <input class="input" id="f-title" name="title" maxlength="160">

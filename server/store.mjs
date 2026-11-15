@@ -45,6 +45,12 @@ const SIDE_IDS = new Set(SIDES.map(side => side.id));
 const STATUS_IDS = new Set(STATUSES.map(status => status.id));
 
 const text = (value, max) => String(value ?? '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').trim().slice(0, max);
+/** Instant dans la vidéo, en secondes au dixième (0 = pas de coupe). */
+const seconds = value => {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? Math.min(Math.round(number * 10) / 10, 3600) : 0;
+};
+
 const ids = (value, allowed) => [...new Set((Array.isArray(value) ? value : []).map(String).filter(id => allowed.has(id)))];
 
 export function isTikTokUrl(raw) {
@@ -66,6 +72,10 @@ export function sanitizeFields(input = {}) {
   if ('tags' in input) out.tags = ids(input.tags, TAG_IDS);
   if ('status' in input) out.status = STATUS_IDS.has(input.status) ? input.status : 'todo';
   if ('notes' in input) out.notes = text(input.notes, 4000);
+  // Extrait de la vidéo (coupe non destructive : le fichier reste entier).
+  if ('clipStart' in input) out.clipStart = seconds(input.clipStart);
+  if ('clipEnd' in input) out.clipEnd = seconds(input.clipEnd);
+  if (out.clipEnd && out.clipEnd <= (out.clipStart || 0)) out.clipEnd = 0;
   return out;
 }
 
@@ -107,7 +117,7 @@ export class Store {
     const now = Date.now();
     const item = {
       id:newId(), url, videoId, author:text(author, 80),
-      title:'', description:'', map:'', side:'', site:'', agents:[], tags:[], status:'todo', notes:'',
+      title:'', description:'', map:'', side:'', site:'', agents:[], tags:[], status:'todo', notes:'', clipStart:0, clipEnd:0,
       ...sanitizeFields(fields),
       video:{ status:videoId ? 'pending' : 'none', attempts:0 },
       addedBy:user, addedAt:now, updatedBy:user, updatedAt:now,

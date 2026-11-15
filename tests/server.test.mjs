@@ -196,3 +196,17 @@ test('nettoyage des champs et résumé d’erreur yt-dlp', () => {
   assert.deepEqual(sanitizeFields({ title:'  x  ', side:'atk', bidon:1 }), { title:'x', side:'atk' });
   assert.equal(errorSummary('[tiktok] x\nERROR: [TikTok] 123: Video not available'), '[TikTok] 123: Video not available');
 });
+
+test('découpe : début et fin enregistrés, fin avant le début ignorée', async () => {
+  const created = await call('/api/strats', { method:'POST', body:{
+    url:'https://www.tiktok.com/@a/video/7400000000000000077', videoId:'7400000000000000077', author:'a', title:'Clip',
+  } });
+  const { item } = await created.json();
+  assert.equal(item.clipStart, 0);
+  const cut = await (await call(`/api/strats/${item.id}`, { method:'PATCH', body:{ clipStart:12.34, clipEnd:31 } })).json();
+  assert.equal(cut.item.clipStart, 12.3);
+  assert.equal(cut.item.clipEnd, 31);
+  const wrong = await (await call(`/api/strats/${item.id}`, { method:'PATCH', body:{ clipStart:40, clipEnd:31 } })).json();
+  assert.equal(wrong.item.clipStart, 40);
+  assert.equal(wrong.item.clipEnd, 0);
+});

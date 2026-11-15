@@ -192,6 +192,7 @@ export const AGENTS = [
   atk('Ram', ['bu gi', 'bugi'], ['ram']),
   atk('Deimos', ['deathmark']),
   atk('Striker', [], ['striker']),
+  atk('Rauora', ['dom panel', 'd o m panel']),
   // Défense
   def('Smoke', ['gas canister', 'gas canisters', 'remote gas grenade'], ['smoke']),
   def('Mute', ['signal disruptor', 'signal disruptors', 'jammer', 'jammers'], ['mute']),
@@ -230,7 +231,6 @@ export const AGENTS = [
   def('Tubarão', ['tubarao', 'zoto', 'zoto canister', 'zoto canisters']),
   def('Sentry', [], ['sentry']),
   def('Skopós', ['skopos', 'talos']),
-  def('Rauora', ['dom panel', 'd o m panel']),
   def('Denari', ['trip connector', 'trip connectors']),
 ];
 

@@ -1,4 +1,5 @@
 import { api, logout, me, subscribe } from './api.mjs';
+import { predictCuts } from './cuts.mjs';
 import { cleanTitle, detectStrat, normalize } from './detect.mjs';
 import { AGENTS, MAPS, STATUSES, TAGS, agentById, mapById, sideById, siteSuggestions, statusById, tagById } from './r6.mjs';
 import { embedUrl, extractTikTokUrls, fetchTikTokMeta } from './tiktok.mjs';
@@ -323,6 +324,111 @@ function renderVideo() {
     ${notes[status] ? `<p class="video-note">${notes[status]}</p>` : ''}`;
 }
 
+/* ─── Coupes suggérées et sous-titres cliquables ─────────────────────── */
+
+const timelines = new Map();
+let cuts = null;
+
+/** Phrases horodatées et plans de la vidéo (chargés à l'ouverture de la fiche). */
+async function loadTimeline() {
+  cuts = null;
+  renderCutSuggestions();
+  if (!draft?.id || !draft.hasTimeline) { renderTranscript(); return; }
+  const id = draft.id;
+  try {
+    if (!timelines.has(id)) timelines.set(id, await api(`/api/strats/${id}/timeline`));
+  } catch {
+    return;
+  }
+  if (draft?.id !== id) return;
+  const timeline = timelines.get(id);
+  cuts = predictCuts({ ...timeline, duration:timeline.duration || $('#sheet-video video')?.duration || 0 });
+  renderTranscript();
+  renderCutSuggestions();
+}
+
+function renderTranscript() {
+  const box = $('#f-transcript');
+  const timeline = draft?.id ? timelines.get(draft.id) : null;
+  if (!timeline?.cues?.length) {
+    box.textContent = draft?.transcript || '';
+    return;
+  }
+  // Toucher une phrase : la vidéo va à ce moment (pratique pour découper à la main).
+  box.innerHTML = timeline.cues.map(cue => `<button type="button" class="cue" data-seek="${cue.s}">
+    <span>${formatTime(cue.s)}</span>${escapeHTML(cue.t)}</button>`).join('');
+}
+
+function seekTo(time, { play = true } = {}) {
+  const video = $('#sheet-video video');
+  if (!video) return;
+  video.currentTime = time;
+  if (play) video.play().catch(() => {});
+}
+
+function renderCutSuggestions() {
+  const box = $('#cut-suggest');
+  const ready = draft?.video?.status === 'ready';
+  const intro = cuts?.intro;
+  const outro = cuts?.outro;
+  const segments = cuts?.segments || [];
+  if (!ready || (!intro && !outro && !segments.length)) {
+    box.hidden = true;
+    return;
+  }
+  const parts = [];
+  if (intro || outro) {
+    const start = intro?.start || 0;
+    const end = outro?.end || 0;
+    parts.push(`<div class="cut-row">
+      <span>${[intro ? `intro coupée (début ${formatTime(start)})` : '', outro ? `fin coupée à ${formatTime(end)}` : ''].filter(Boolean).join(' · ')}</span>
+      <button type="button" class="btn btn-small" data-apply="${start},${end}">✂️ Appliquer</button>
+    </div>`);
+  }
+  if (segments.length) {
+    parts.push(`<p class="cut-title">${segments.length} strats repérées dans cette vidéo :</p>`);
+    parts.push(...segments.map((segment, index) => `<div class="cut-row segment">
+      <span><b>${formatTime(segment.start)} → ${formatTime(segment.end)}</b> « ${escapeHTML(segment.label)} »</span>
+      <span class="cut-actions">
+        <button type="button" class="link-btn" data-apply="${segment.start},${segment.end}">▶ Voir</button>
+        ${draft.id ? `<button type="button" class="link-btn" data-extract="${index}">➕ Extraire</button>` : ''}
+      </span>
+    </div>`));
+    if (draft.id) parts.push(`<button type="button" class="btn btn-small clip-extract" data-extract-all>➕ Extraire les ${segments.length} en strats séparées</button>`);
+  }
+  box.innerHTML = `<p class="cut-head">🔮 Coupes suggérées <small>(d’après ce qui est dit et le montage)</small></p>${parts.join('')}`;
+  box.hidden = false;
+}
+
+function applyCut(start, end) {
+  if (!draft) return;
+  draft.clipStart = start || 0;
+  draft.clipEnd = end || 0;
+  renderClip();
+  seekTo(draft.clipStart);
+  toast('Découpe appliquée : pense à enregistrer');
+}
+
+async function extractSegments(indexes) {
+  if (!draft?.id || !cuts?.segments?.length) return;
+  const created = [];
+  try {
+    for (const index of indexes) {
+      const segment = cuts.segments[index];
+      const { item } = await api(`/api/strats/${draft.id}/extract`, {
+        method:'POST', body:{ clipStart:segment.start, clipEnd:segment.end, title:segment.label },
+      });
+      state.items = { ...state.items, [item.id]:item };
+      created.push(item);
+    }
+  } catch (error) {
+    $('#sheet-error').textContent = error.message;
+  }
+  render();
+  renderClip();
+  if (created.length) toast(created.length > 1 ? `${created.length} strats créées` : `Nouvelle strat créée : « ${created[0].title} »`);
+}
+
 /* ─── Découpe (extrait lu en boucle, la vidéo reste entière) ──────────── */
 
 const formatTime = value => {
@@ -462,6 +568,7 @@ function openSheet(nextDraft, { isNew = false, source = '' } = {}) {
   shownVideo = '';
   renderVideo();
   if (!sheet.open) sheet.showModal();
+  loadTimeline();
   // Toujours repartir du haut de la fiche (titre et ✕ visibles), même après un focus automatique.
   for (const box of [sheet, sheet.querySelector('.sheet-body'), sheet.querySelector('.sheet-fields')]) box.scrollTop = 0;
 }
@@ -495,6 +602,11 @@ function refreshOpenSheet() {
     }
     fillSheet();
     toast('✨ Sous-titres de la vidéo reçus : fiche complétée');
+  }
+  if (strat.hasTimeline && !draft.hasTimeline) {
+    draft.hasTimeline = true;
+    timelines.delete(draft.id);
+    loadTimeline();
   }
 }
 
@@ -853,6 +965,21 @@ function bindEvents() {
   $('#clip-end').addEventListener('click', () => setClip('end'));
   $('#clip-reset').addEventListener('click', resetClip);
   $('#clip-extract').addEventListener('click', extractClip);
+  $('#cut-suggest').addEventListener('click', event => {
+    const apply = event.target.closest('[data-apply]');
+    if (apply) {
+      const [start, end] = apply.dataset.apply.split(',').map(Number);
+      applyCut(start, end);
+      return;
+    }
+    const one = event.target.closest('[data-extract]');
+    if (one) { extractSegments([Number(one.dataset.extract)]); return; }
+    if (event.target.closest('[data-extract-all]')) extractSegments(cuts.segments.map((_, index) => index));
+  });
+  $('#f-transcript').addEventListener('click', event => {
+    const cue = event.target.closest('[data-seek]');
+    if (cue) seekTo(Number(cue.dataset.seek));
+  });
   $('#clip-siblings').addEventListener('click', event => {
     const target = event.target.closest('[data-open]');
     if (target) openStrat(target.dataset.open);

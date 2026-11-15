@@ -5,7 +5,7 @@
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync, statfsSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseVtt, pickSubtitle } from './transcript.mjs';
+import { parseVttCues, pickSubtitle, TRANSCRIPT_MAX } from './transcript.mjs';
 
 const MAX_ATTEMPTS = 3;
 const GAP_MS = 5_000;
@@ -18,7 +18,7 @@ const SUBTITLE_ARGS = ['--write-subs', '--write-auto-subs', '--sub-langs', 'fra.
 
 export const mediaPath = (dir, videoId, ext) => join(dir, `${videoId}.${ext}`);
 
-function run(command, args, timeoutMs) {
+function run(command, args, timeoutMs, { keep = 4000 } = {}) {
   return new Promise(resolve => {
     let output = '';
     let child;
@@ -29,12 +29,27 @@ function run(command, args, timeoutMs) {
       return;
     }
     const timer = setTimeout(() => child.kill('SIGKILL'), timeoutMs);
-    child.stdout.on('data', chunk => { output = (output + chunk).slice(-4000); });
-    child.stderr.on('data', chunk => { output = (output + chunk).slice(-4000); });
+    child.stdout.on('data', chunk => { output = (output + chunk).slice(-keep); });
+    child.stderr.on('data', chunk => { output = (output + chunk).slice(-keep); });
     child.on('error', error => { clearTimeout(timer); resolve({ code:-1, output:error.message }); });
     child.on('close', code => { clearTimeout(timer); resolve({ code, output }); });
   });
 }
+
+/** Sortie ffmpeg (showinfo) → { scenes:[secondes], duration }. */
+export function parseScenes(output = '') {
+  const duration = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(output);
+  const scenes = [...String(output).matchAll(/pts_time:\s*([\d.]+)/g)]
+    .map(match => Math.round(Number(match[1]) * 100) / 100)
+    .filter(Number.isFinite);
+  return {
+    scenes:[...new Set(scenes)].sort((left, right) => left - right).slice(0, 120),
+    duration:duration ? Math.round((Number(duration[1]) * 3600 + Number(duration[2]) * 60 + Number(duration[3])) * 100) / 100 : 0,
+  };
+}
+
+const needsSubtitles = item => item.transcript === undefined || (Boolean(item.transcript) && !item.cues);
+const needsTimeline = item => needsSubtitles(item) || !item.timeline;
 
 /** Dernière ligne d'erreur utile de yt-dlp, lisible dans le site. */
 export function errorSummary(output = '') {
@@ -61,8 +76,8 @@ export class Downloader {
       for (const item of this.store.list()) {
         const video = item.video || {};
         const ready = video.status === 'ready' && existsSync(mediaPath(this.store.mediaDir, item.videoId, 'mp4'));
-        // Vidéo déjà copiée mais sous-titres jamais cherchés (strats d'avant) : on rattrape.
-        if (item.videoId && ready && item.transcript === undefined) { this.enqueue(item.id); continue; }
+        // Vidéo déjà copiée mais sous-titres, horodatages ou plans manquants (strats d'avant) : on rattrape.
+        if (item.videoId && ready && needsTimeline(item)) { this.enqueue(item.id); continue; }
         // Couverture noire d'une strat déjà copiée : une seule tentative par démarrage.
         if (ready && !this.coverChecked.has(item.videoId)) {
           this.coverChecked.add(item.videoId);
@@ -128,7 +143,9 @@ export class Downloader {
     // Copie déjà faite : seulement les sous-titres (et une couverture correcte).
     if (item.video?.status === 'ready' && existsSync(mediaPath(dir, item.videoId, 'mp4'))) {
       // Extrait d'une vidéo déjà traitée (copie et sous-titres partagés) : rien à refaire.
-      if (item.transcript !== undefined) return;
+      if (!needsTimeline(item)) return;
+      if (!item.timeline) await this.detectScenes(id, item.videoId);
+      if (!needsSubtitles(item)) return;
       const subs = await run(this.ytDlp, ['--no-playlist', '--skip-download', ...SUBTITLE_ARGS, ...output, url], 2 * 60_000);
       await this.ensureCover(id, item.videoId);
       // yt-dlp en échec (TikTok qui refuse, réseau) : on réessaiera, plutôt que de noter « pas de sous-titres ».
@@ -165,6 +182,7 @@ export class Downloader {
       });
       this.log.info?.(`Vidéo ${item.videoId} copiée`);
       await this.ensureCover(id, item.videoId);
+      await this.detectScenes(id, item.videoId);
       this.readTranscript(id, item.videoId);
     } else {
       const error = errorSummary(result.output);
@@ -190,21 +208,39 @@ export class Downloader {
     else this.log.warn?.(`Couverture de ${videoId} impossible : ${errorSummary(result.output)}`);
   }
 
+  /**
+   * Changements de plan du montage (ffmpeg, détection de scène) et durée : ils
+   * servent à placer les coupes suggérées pile sur une transition.
+   */
+  async detectScenes(id, videoId) {
+    const result = await run(this.ffmpeg, [
+      '-hide_banner', '-i', mediaPath(this.store.mediaDir, videoId, 'mp4'),
+      '-an', '-vf', "scale=160:-2,select='gt(scene,0.3)',showinfo", '-f', 'null', '-',
+    ], 3 * 60_000, { keep:200_000 });
+    const timeline = parseScenes(result.output);
+    if (result.code !== 0 && !timeline.duration) {
+      this.log.warn?.(`Plans de ${videoId} introuvables : ${errorSummary(result.output)}`);
+      return;
+    }
+    this.store.setTimeline(id, timeline);
+  }
+
   /** Lit les sous-titres téléchargés, les range dans la strat (complément des champs vides) et efface les fichiers. */
   readTranscript(id, videoId, output = '') {
     const dir = this.store.mediaDir;
     let files = [];
     try { files = readdirSync(dir).filter(file => file.startsWith(`${videoId}.`) && file.endsWith('.vtt')); } catch { /* dossier illisible */ }
-    let text = '';
+    let cues = [];
     const chosen = pickSubtitle(files);
     if (chosen) {
-      try { text = parseVtt(readFileSync(join(dir, chosen), 'utf8')); } catch { /* fichier illisible */ }
+      try { cues = parseVttCues(readFileSync(join(dir, chosen), 'utf8')); } catch { /* fichier illisible */ }
     }
+    const text = cues.map(cue => cue.t).join(' ').slice(0, TRANSCRIPT_MAX);
     for (const file of files) try { unlinkSync(join(dir, file)); } catch { /* déjà effacé */ }
     if (!files.length && /subtitle/i.test(output) && !/no subtitles/i.test(output)) {
       this.log.warn?.(`Sous-titres de ${videoId} annoncés mais introuvables : ${errorSummary(output)}`);
     }
-    const filled = this.store.applyTranscript(id, text);
+    const filled = this.store.applyTranscript(id, text, cues);
     if (filled?.length) this.log.info?.(`Vidéo ${videoId} : ${filled.join(', ')} complété(s) depuis les sous-titres`);
   }
 

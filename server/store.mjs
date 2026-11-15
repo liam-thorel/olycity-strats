@@ -125,10 +125,10 @@ export class Store {
     const item = {
       id:newId(), url:source.url, videoId:source.videoId, author:source.author,
       ...base, ...sanitizeFields({ ...base, ...fields }),
-      transcript:source.transcript, auto:[], video:{ ...(source.video || {}) },
+      transcript:source.transcript, cues:source.cues, timeline:source.timeline, auto:[], video:{ ...(source.video || {}) },
       extractOf:source.id, addedBy:user, addedAt:now, updatedBy:user, updatedAt:now,
     };
-    if (item.transcript === undefined) delete item.transcript;
+    for (const key of ['transcript', 'cues', 'timeline']) if (item[key] === undefined) delete item[key];
     this.items[item.id] = item;
     this.changed();
     return item;
@@ -174,13 +174,14 @@ export class Store {
   }
 
   /** Range les sous-titres et complète les champs encore vides. Renvoie les champs complétés. */
-  applyTranscript(id, text) {
+  applyTranscript(id, text, cues = []) {
     const item = this.get(id);
     if (!item) return [];
     let filledHere = [];
     // La vidéo est commune : chaque extrait reçoit les sous-titres et complète ses propres champs vides.
     for (const strat of this.byVideo(item.videoId)) {
       strat.transcript = text || '';
+      strat.cues = cues;
       const { patch, filled } = autofill(strat, strat.transcript);
       Object.assign(strat, sanitizeFields(patch));
       if (filled.length) strat.auto = [...new Set([...(strat.auto || []), ...filled])];
@@ -188,6 +189,14 @@ export class Store {
     }
     this.changed();
     return filledHere;
+  }
+
+  /** Plans du montage et durée, communs aux strats de la même vidéo. */
+  setTimeline(id, timeline) {
+    const item = this.get(id);
+    if (!item) return;
+    for (const strat of this.byVideo(item.videoId)) strat.timeline = timeline;
+    this.changed();
   }
 
   setVideo(id, video) {

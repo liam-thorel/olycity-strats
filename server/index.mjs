@@ -122,9 +122,11 @@ function sendFile(req, res, file, { cache = 'no-cache', extraHeaders = {} } = {}
 }
 
 function publicItem(item) {
-  const { video = {} } = item;
+  // Horodatages et plans : envoyés à la demande (/timeline), pas dans la liste en direct.
+  const { video = {}, cues, timeline, ...rest } = item;
   return {
-    ...item,
+    ...rest,
+    hasTimeline:Boolean(cues?.length || timeline?.scenes?.length),
     transcript:item.transcript || '',
     auto:item.auto || [],
     video:{ status:video.status || 'none', error:video.error || '', cover:Boolean(video.cover), size:video.size || 0, v:video.coverAt || video.at || 0 },
@@ -190,11 +192,15 @@ export function createApp(config, { fetchImpl = fetch, log = console } = {}) {
       return send(res, 201, { item:publicItem(item) });
     }
 
-    const match = /^\/api\/strats\/([a-z0-9]{6,40})(\/retry|\/extract)?$/.exec(path);
+    const match = /^\/api\/strats\/([a-z0-9]{6,40})(\/retry|\/extract|\/timeline)?$/.exec(path);
     if (match) {
       const [, id, action] = match;
       const retry = action === '/retry';
       if (!store.get(id)) throw new HttpError(404, 'Strat introuvable');
+      if (action === '/timeline' && method === 'GET') {
+        const strat = store.get(id);
+        return send(res, 200, { cues:strat.cues || [], scenes:strat.timeline?.scenes || [], duration:strat.timeline?.duration || 0 });
+      }
       if (action === '/extract' && method === 'POST') {
         const body = await readJson(req);
         const item = store.extract(id, body, userRef);

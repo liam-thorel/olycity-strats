@@ -312,3 +312,22 @@ button, a, select, .chip { touch-action:manipulation; -webkit-tap-highlight-colo
 .sibling:hover { border-color:var(--border2); }
 .sibling span { color:var(--gold); font:700 11.5px var(--font-display); }
 .sibling strong { overflow:hidden; font-size:13.5px; text-overflow:ellipsis; white-space:nowrap; }
+
+/* ─── Coupes suggérées ─── */
+.cut-suggest { display:grid; gap:8px; padding:10px; border:1px dashed rgba(168,127,255,.45); border-radius:10px; background:rgba(168,127,255,.06); }
+.cut-head { color:var(--violet); font-size:13px; font-weight:700; }
+.cut-head small { color:var(--dim); font-weight:500; }
+.cut-title { color:var(--muted); font-size:12.5px; font-weight:600; }
+.cut-row { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; color:var(--muted); font-size:13px; }
+.cut-row.segment { padding:6px 0; border-top:1px solid var(--border); }
+.cut-row b { color:var(--gold); font:700 12px var(--font-display); }
+.cut-actions { display:flex; gap:12px; }
+
+/* ─── Sous-titres cliquables ─── */
+#f-transcript { display:grid; gap:2px; max-height:240px; margin-top:8px; overflow:auto; }
+.cue {
+  display:flex; gap:8px; padding:4px 6px; border:0; border-radius:6px; background:transparent;
+  color:var(--muted); font-size:13.5px; line-height:1.45; text-align:left; cursor:pointer;
+}
+.cue:hover { background:var(--surf3); color:var(--text); }
+.cue span { flex-shrink:0; min-width:44px; color:var(--cyan); font:700 11.5px var(--font-display); padding-top:2px; }

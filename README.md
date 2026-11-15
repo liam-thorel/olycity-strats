@@ -45,6 +45,11 @@ l'exclure du serveur ; son accès tombe dans les 6 heures (`RECHECK_HOURS`).
   qui montre plusieurs strats : découper chaque passage puis « Extraire ce passage en
   nouvelle strat » ; chaque extrait est une strat à part (titre, agents, notes) qui
   partage le même fichier vidéo et les mêmes sous-titres.
+- **Coupes suggérées** (`public/js/cuts.mjs`) : d'après les sous-titres horodatés et les
+  changements de plan (ffmpeg), la fiche propose de couper l'intro « accroche », la fin
+  « abonne-toi », et repère plusieurs strats dans une vidéo (« second spot »,
+  « another setup »…), chacune extractible en un clic. Les phrases des sous-titres sont
+  cliquables pour aller au bon moment.
 - **Compléter** : cliquer une carte ouvre la vidéo et la fiche (agents, site,
   statut À tester / Validée / Bof, notes). Tout le monde peut modifier ; les
   changements apparaissent en direct chez les autres.

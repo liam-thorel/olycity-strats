@@ -127,6 +127,8 @@ export class Downloader {
 
     // Copie déjà faite : seulement les sous-titres (et une couverture correcte).
     if (item.video?.status === 'ready' && existsSync(mediaPath(dir, item.videoId, 'mp4'))) {
+      // Extrait d'une vidéo déjà traitée (copie et sous-titres partagés) : rien à refaire.
+      if (item.transcript !== undefined) return;
       const subs = await run(this.ytDlp, ['--no-playlist', '--skip-download', ...SUBTITLE_ARGS, ...output, url], 2 * 60_000);
       await this.ensureCover(id, item.videoId);
       // yt-dlp en échec (TikTok qui refuse, réseau) : on réessaiera, plutôt que de noter « pas de sous-titres ».

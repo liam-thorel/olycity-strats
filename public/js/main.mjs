@@ -365,6 +365,46 @@ function renderClip() {
   $('#clip-times').textContent = cut ? `${formatTime(start)} → ${end ? formatTime(end) : 'fin'}` : 'Vidéo entière';
   $('#clip-times').classList.toggle('is-cut', Boolean(cut));
   $('#clip-reset').hidden = !cut;
+  // Plusieurs strats dans un même TikTok : chaque passage peut devenir sa propre strat.
+  $('#clip-extract').hidden = !draft.id || !cut;
+  $('#clip-extract-hint').hidden = Boolean(draft.id);
+  renderSiblings();
+}
+
+/** Les autres strats tirées de la même vidéo, pour passer de l'une à l'autre. */
+function renderSiblings() {
+  const box = $('#clip-siblings');
+  const siblings = strats().filter(strat => strat.videoId === draft.videoId && strat.id !== draft.id)
+    .sort((left, right) => (Number(left.clipStart) || 0) - (Number(right.clipStart) || 0));
+  box.hidden = !siblings.length;
+  box.innerHTML = siblings.length ? `<span class="label">Aussi dans ce TikTok</span>${siblings.map(strat => `
+    <button type="button" class="sibling" data-open="${escapeHTML(strat.id)}">
+      <span>${strat.clipStart || strat.clipEnd ? `✂️ ${formatTime(strat.clipStart)} → ${strat.clipEnd ? formatTime(strat.clipEnd) : 'fin'}` : 'Vidéo entière'}</span>
+      <strong>${escapeHTML(strat.title || 'Sans titre')}</strong>
+    </button>`).join('')}` : '';
+}
+
+async function extractClip() {
+  if (!draft?.id) return;
+  const button = $('#clip-extract');
+  button.disabled = true;
+  try {
+    const { item } = await api(`/api/strats/${draft.id}/extract`, {
+      method:'POST', body:{ clipStart:draft.clipStart || 0, clipEnd:draft.clipEnd || 0 },
+    });
+    state.items = { ...state.items, [item.id]:item };
+    // La strat ouverte garde son propre découpage enregistré : on passe au passage suivant.
+    const saved = findById(draft.id);
+    draft.clipStart = saved?.clipStart || 0;
+    draft.clipEnd = saved?.clipEnd || 0;
+    render();
+    renderClip();
+    toast(`Nouvelle strat créée : « ${item.title} »`);
+  } catch (error) {
+    $('#sheet-error').textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function setClip(which) {
@@ -812,6 +852,11 @@ function bindEvents() {
   $('#clip-start').addEventListener('click', () => setClip('start'));
   $('#clip-end').addEventListener('click', () => setClip('end'));
   $('#clip-reset').addEventListener('click', resetClip);
+  $('#clip-extract').addEventListener('click', extractClip);
+  $('#clip-siblings').addEventListener('click', event => {
+    const target = event.target.closest('[data-open]');
+    if (target) openStrat(target.dataset.open);
+  });
   bindSiteCombo();
   bindHoverPreview();
   $('#sheet-form').addEventListener('submit', event => { event.preventDefault(); saveSheet(); });

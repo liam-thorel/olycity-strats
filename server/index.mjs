@@ -190,16 +190,26 @@ export function createApp(config, { fetchImpl = fetch, log = console } = {}) {
       return send(res, 201, { item:publicItem(item) });
     }
 
-    const match = /^\/api\/strats\/([a-z0-9]{6,40})(\/retry)?$/.exec(path);
+    const match = /^\/api\/strats\/([a-z0-9]{6,40})(\/retry|\/extract)?$/.exec(path);
     if (match) {
-      const [, id, retry] = match;
+      const [, id, action] = match;
+      const retry = action === '/retry';
       if (!store.get(id)) throw new HttpError(404, 'Strat introuvable');
+      if (action === '/extract' && method === 'POST') {
+        const body = await readJson(req);
+        const item = store.extract(id, body, userRef);
+        if (!item.clipStart && !item.clipEnd) {
+          store.remove(item.id);
+          throw new HttpError(400, 'Choisis un début ou une fin pour l’extrait');
+        }
+        return send(res, 201, { item:publicItem(item) });
+      }
       if (retry && method === 'POST') {
         downloader.enqueue(id, { reset:true });
         return send(res, 202, { ok:true });
       }
-      if (!retry && method === 'PATCH') return send(res, 200, { item:publicItem(store.update(id, await readJson(req), userRef)) });
-      if (!retry && method === 'DELETE') {
+      if (!action && method === 'PATCH') return send(res, 200, { item:publicItem(store.update(id, await readJson(req), userRef)) });
+      if (!action && method === 'DELETE') {
         const removed = store.remove(id);
         downloader.removeMedia(removed.videoId);
         return send(res, 200, { ok:true });

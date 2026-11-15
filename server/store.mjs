@@ -97,8 +97,41 @@ export class Store {
 
   get(id) { return this.items[id] || null; }
 
+  /** Première strat ajoutée pour cette vidéo (les extraits suivants la partagent). */
   findByVideo(videoId) {
-    return videoId ? this.list().find(item => item.videoId === videoId) || null : null;
+    if (!videoId) return null;
+    return this.list().filter(item => item.videoId === videoId).sort((left, right) => left.addedAt - right.addedAt)[0] || null;
+  }
+
+  /** Toutes les strats tirées d'une même vidéo (la strat d'origine et ses extraits). */
+  byVideo(videoId) {
+    return videoId ? this.list().filter(item => item.videoId === videoId) : [];
+  }
+
+  /**
+   * Extrait un passage d'une strat en nouvelle strat : même vidéo (même fichier),
+   * ses propres début/fin, et les infos de la strat d'origine comme point de départ.
+   */
+  extract(sourceId, fields, user) {
+    const source = this.get(sourceId);
+    if (!source) return null;
+    const now = Date.now();
+    const siblings = this.byVideo(source.videoId).length;
+    const base = {
+      title:source.title ? `${source.title} (extrait ${siblings + 1})` : `Extrait ${siblings + 1}`,
+      description:source.description, map:source.map, side:source.side, site:source.site,
+      agents:[...source.agents], tags:[...source.tags], status:'todo', notes:'',
+    };
+    const item = {
+      id:newId(), url:source.url, videoId:source.videoId, author:source.author,
+      ...base, ...sanitizeFields({ ...base, ...fields }),
+      transcript:source.transcript, auto:[], video:{ ...(source.video || {}) },
+      extractOf:source.id, addedBy:user, addedAt:now, updatedBy:user, updatedAt:now,
+    };
+    if (item.transcript === undefined) delete item.transcript;
+    this.items[item.id] = item;
+    this.changed();
+    return item;
   }
 
   onChange(listener) {
@@ -144,18 +177,26 @@ export class Store {
   applyTranscript(id, text) {
     const item = this.get(id);
     if (!item) return [];
-    item.transcript = text || '';
-    const { patch, filled } = autofill(item, item.transcript);
-    Object.assign(item, sanitizeFields(patch));
-    if (filled.length) item.auto = [...new Set([...(item.auto || []), ...filled])];
+    let filledHere = [];
+    // La vidéo est commune : chaque extrait reçoit les sous-titres et complète ses propres champs vides.
+    for (const strat of this.byVideo(item.videoId)) {
+      strat.transcript = text || '';
+      const { patch, filled } = autofill(strat, strat.transcript);
+      Object.assign(strat, sanitizeFields(patch));
+      if (filled.length) strat.auto = [...new Set([...(strat.auto || []), ...filled])];
+      if (strat.id === id) filledHere = filled;
+    }
     this.changed();
-    return filled;
+    return filledHere;
   }
 
   setVideo(id, video) {
     const item = this.get(id);
     if (!item) return;
-    item.video = { ...(item.video || {}), ...video };
+    // Un seul fichier pour la vidéo : son état vaut pour toutes les strats qui l'utilisent.
+    for (const strat of this.byVideo(item.videoId).length ? this.byVideo(item.videoId) : [item]) {
+      strat.video = { ...(strat.video || {}), ...video };
+    }
     this.changed();
   }
 

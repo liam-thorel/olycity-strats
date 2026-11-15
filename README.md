@@ -40,6 +40,11 @@ l'exclure du serveur ; son accès tombe dans les 6 heures (`RECHECK_HOURS`).
 - **Vidéos** : chaque TikTok est copié sur le serveur avec yt-dlp, une vidéo à la
   fois. Tant que la copie n'est pas prête (ou si elle échoue), la fiche affiche le
   lecteur TikTok ; « Réessayer » relance une copie échouée.
+- **Découper / extraire** (vidéo copiée) : « Début ici » / « Fin ici » limite la lecture
+  à un passage, en boucle (coupe non destructive, le fichier reste entier). Un TikTok
+  qui montre plusieurs strats : découper chaque passage puis « Extraire ce passage en
+  nouvelle strat » ; chaque extrait est une strat à part (titre, agents, notes) qui
+  partage le même fichier vidéo et les mêmes sous-titres.
 - **Compléter** : cliquer une carte ouvre la vidéo et la fiche (agents, site,
   statut À tester / Validée / Bof, notes). Tout le monde peut modifier ; les
   changements apparaissent en direct chez les autres.

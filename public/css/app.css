@@ -298,3 +298,17 @@ button, a, select, .chip { touch-action:manipulation; -webkit-tap-highlight-colo
 .clip-times.is-cut { color:var(--gold); }
 .clip-hint { color:var(--dim); font-size:12px; line-height:1.45; }
 .pill.clip-pill { letter-spacing:0; }
+
+/* ─── Extraits d'un même TikTok ─── */
+.clip { display:grid; gap:10px; }
+.clip-extract { justify-self:start; border-color:var(--cyan); color:var(--cyan); }
+.clip-extract:hover { background:rgba(63,207,207,.1); border-color:var(--cyan); }
+.clip-siblings { display:grid; gap:6px; padding-top:8px; border-top:1px solid var(--border); }
+.clip-siblings .label { color:var(--muted); font-size:12px; font-weight:600; }
+.sibling {
+  display:grid; gap:2px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:var(--surf);
+  color:inherit; text-align:left; cursor:pointer;
+}
+.sibling:hover { border-color:var(--border2); }
+.sibling span { color:var(--gold); font:700 11.5px var(--font-display); }
+.sibling strong { overflow:hidden; font-size:13.5px; text-overflow:ellipsis; white-space:nowrap; }

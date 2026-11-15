@@ -210,3 +210,36 @@ test('découpe : début et fin enregistrés, fin avant le début ignorée', asyn
   assert.equal(wrong.item.clipStart, 40);
   assert.equal(wrong.item.clipEnd, 0);
 });
+
+test('extraire plusieurs passages d’une même vidéo en strats séparées', async () => {
+  const created = await call('/api/strats', { method:'POST', body:{
+    url:'https://www.tiktok.com/@a/video/7400000000000000088', videoId:'7400000000000000088', author:'a',
+    title:'3 setups Banque', map:'bank', side:'def', agents:['kapkan'],
+  } });
+  const { item:source } = await created.json();
+
+  const noClip = await call(`/api/strats/${source.id}/extract`, { method:'POST', body:{} });
+  assert.equal(noClip.status, 400);
+
+  const first = (await (await call(`/api/strats/${source.id}/extract`, { method:'POST', body:{ clipStart:10, clipEnd:20 } })).json()).item;
+  const second = (await (await call(`/api/strats/${source.id}/extract`, { method:'POST', body:{ clipStart:25, clipEnd:40 } })).json()).item;
+  assert.equal(first.videoId, source.videoId);
+  assert.equal(first.map, 'bank');
+  assert.deepEqual(first.agents, ['kapkan']);
+  assert.equal(first.extractOf, source.id);
+  assert.equal(first.title, '3 setups Banque (extrait 2)');
+  assert.equal(second.title, '3 setups Banque (extrait 3)');
+  assert.deepEqual([second.clipStart, second.clipEnd], [25, 40]);
+
+  // Même vidéo : l'état de la copie et les sous-titres sont partagés.
+  dev.store.setVideo(source.id, { status:'ready' });
+  assert.equal(dev.store.get(second.id).video.status, 'ready');
+  dev.store.applyTranscript(first.id, 'Kapkan on the CEO door');
+  assert.equal(dev.store.get(source.id).transcript, 'Kapkan on the CEO door');
+
+  // Supprimer un extrait garde la vidéo pour les autres ; le TikTok reste « déjà ajouté ».
+  assert.equal((await call(`/api/strats/${first.id}`, { method:'DELETE' })).status, 200);
+  const again = await call('/api/strats', { method:'POST', body:{ url:'https://www.tiktok.com/@a/video/7400000000000000088', videoId:'7400000000000000088' } });
+  assert.equal(again.status, 409);
+  assert.equal((await again.json()).id, source.id);
+});

@@ -236,7 +236,7 @@ export function createApp(config, { fetchImpl = fetch, log = console } = {}) {
 
     if (path === '/health') return send(res, 200, { ok:true });
 
-    // Entrée interne du robot du groupe TikTok : jamais par le tunnel (donc jamais depuis internet), et avec jeton.
+    // Entrée interne du robot de la messagerie TikTok : jamais par le tunnel (donc jamais depuis internet), et avec jeton.
     if (path === '/internal/ingest' && req.method === 'POST') {
       if (req.headers['cf-connecting-ip'] || req.headers['cf-ray'] || !config.INGEST_TOKEN) throw new HttpError(404, 'Route inconnue');
       const given = Buffer.from(String(req.headers.authorization || '').replace(/^Bearer\s+/i, ''));
@@ -244,7 +244,7 @@ export function createApp(config, { fetchImpl = fetch, log = console } = {}) {
       if (given.length !== expected.length || !timingSafeEqual(given, expected)) throw new HttpError(401, 'Jeton invalide');
       const body = await readJson(req);
       const sender = String(body.sender || '').trim().slice(0, 40);
-      const user = { id:'tiktok-group', name:sender ? `${sender} (groupe TikTok)` : 'Groupe TikTok' };
+      const user = { id:'tiktok-inbox', name:sender ? `${sender} (TikTok)` : 'Message TikTok' };
       const urls = extractTikTokUrls((Array.isArray(body.urls) ? body.urls : []).join(' ')).slice(0, 30);
       const results = [];
       for (const url of urls) {

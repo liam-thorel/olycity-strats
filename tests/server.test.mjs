@@ -262,7 +262,7 @@ test('entrée interne du robot TikTok : jeton obligatoire, jamais par le tunnel'
     assert.equal(ok.results[0].status, 'added');
     const item = app.store.get(ok.results[0].id);
     assert.equal(item.map, 'kafe');
-    assert.equal(item.addedBy.name, 'Nico (groupe TikTok)');
+    assert.equal(item.addedBy.name, 'Nico (TikTok)');
     const again = await (await ingest({ authorization:'Bearer secret-de-test' })).json();
     assert.equal(again.results[0].status, 'exists');
   } finally {

@@ -1,15 +1,16 @@
 /**
- * Robot du groupe TikTok (conteneur « inbox » sur le mini PC).
+ * Robot de la messagerie TikTok (conteneur « inbox » sur le mini PC).
  *
  * Toutes les ~5 minutes : ouvre la messagerie TikTok sur le web avec le compte
- * dédié (session enregistrée par login.mjs), ouvre le groupe, repère les
- * TikToks partagés et les envoie au serveur des strats (/internal/ingest).
+ * dédié (session enregistrée par login.mjs), ouvre chaque conversation privée
+ * (TikTok sur le web n'affiche pas les groupes), repère les TikToks reçus et
+ * les envoie au serveur des strats (/internal/ingest) au nom de l'expéditeur.
  *
  * Aucun contournement : navigateur normal, pas de résolution de captcha. Si
  * TikTok demande de se reconnecter ou bloque, le robot l'écrit dans le journal
  * et dans data/tiktok-inbox.json, puis attend.
  *
- * Variables : TIKTOK_GROUP (nom exact du groupe), INGEST_TOKEN, INGEST_URL,
+ * Variables : INGEST_TOKEN, INGEST_URL,
  * STATE_FILE, SEEN_FILE, CHROMIUM, INTERVAL_MIN, INBOX_DEBUG=1 (enregistre la
  * page pour régler le robot).
  */
@@ -19,13 +20,13 @@ import { chromium } from 'playwright-core';
 import { idsFromHtml, idsFromJson, idsFromLinks, unseen, videoUrl } from './extract.mjs';
 
 const env = process.env;
-const GROUP = String(env.TIKTOK_GROUP || '').trim();
 const STATE_FILE = env.STATE_FILE || '/data/tiktok-state.json';
 const SEEN_FILE = env.SEEN_FILE || '/data/tiktok-inbox.json';
 const INGEST_URL = env.INGEST_URL || 'http://strats:3100/internal/ingest';
 const INTERVAL_MIN = Math.max(2, Number(env.INTERVAL_MIN) || 5);
 const DEBUG = env.INBOX_DEBUG === '1';
 const MAX_PER_RUN = 30;
+const MAX_CONVERSATIONS = 25;
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const log = (...args) => console.log(new Date().toISOString(), ...args);
@@ -44,11 +45,11 @@ function saveStatus(seen, status) {
   writeJson(SEEN_FILE, { seen:[...seen].slice(-2000), status:{ ...status, at:new Date().toISOString() } });
 }
 
-async function ingest(ids) {
+async function ingest(ids, sender = '') {
   const response = await fetch(INGEST_URL, {
     method:'POST',
     headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${env.INGEST_TOKEN}` },
-    body:JSON.stringify({ urls:ids.map(videoUrl) }),
+    body:JSON.stringify({ urls:ids.map(videoUrl), sender }),
     signal:AbortSignal.timeout(120_000),
   });
   if (!response.ok) throw new Error(`Serveur des strats : HTTP ${response.status}`);
@@ -84,48 +85,60 @@ async function runOnce(seen, firstRun) {
     await sleep(3000);
     if (/\/login/.test(page.url())) return { ok:false, error:'Session expirée : relancer « node inbox/login.mjs » puis renvoyer la session' };
 
-    // Le groupe : son nom dans la liste des conversations.
-    const names = await page.$$eval('[data-e2e="dm-new-conversation-nickname"]', nodes => nodes.map(node => node.innerText.trim()));
-    const entry = page.locator('[data-e2e="dm-new-conversation-item"]', { hasText:GROUP }).first();
-    if (!(await entry.count())) {
-      log(`Conversations visibles : ${names.length} (groupe « ${GROUP} » absent)`);
+    // TikTok sur le web n'affiche pas les groupes : on lit toutes les conversations
+    // privées du compte dédié (et le groupe s'il apparaît un jour). Chaque TikTok
+    // reçu devient une strat, au nom de la personne qui l'a envoyé.
+    const conversations = page.locator('[data-e2e="dm-new-conversation-item"]');
+    const count = Math.min(await conversations.count(), MAX_CONVERSATIONS);
+    if (!count) {
       if (DEBUG) writeFileSync('/data/inbox-debug.html', await page.content());
-      return { ok:false, error:`Groupe « ${GROUP} » introuvable dans la liste des conversations` };
+      return { ok:true, conversations:0, found:0, added:0 };
     }
-    await entry.click();
-    await sleep(6000);
-    // Remonter un peu dans la conversation au premier passage, pour reprendre les derniers partages.
-    for (let index = 0; index < (firstRun ? 6 : 2); index += 1) {
-      await page.mouse.move(900, 400);
-      await page.mouse.wheel(0, -2500);
-      await sleep(1500);
+    // Ce qui est déjà dans la page avant d'ouvrir une conversation n'appartient à personne.
+    const baseline = new Set([...idsFromHtml(await page.content()), ...fromNetwork]);
+    let totalFound = 0;
+    let added = 0;
+    const debugPages = [];
+    for (let index = 0; index < count; index += 1) {
+      const item = conversations.nth(index);
+      const sender = (await item.locator('[data-e2e="dm-new-conversation-nickname"]').innerText().catch(() => '')).trim();
+      fromNetwork.length = 0;
+      await item.click();
+      await sleep(5000);
+      // Remonter dans la conversation au premier passage, pour reprendre les partages déjà reçus.
+      for (let step = 0; step < (firstRun ? 6 : 1); step += 1) {
+        await page.mouse.move(900, 400);
+        await page.mouse.wheel(0, -2500);
+        await sleep(1500);
+      }
+      const links = await page.$$eval('a[href]', anchors => anchors.map(anchor => anchor.href));
+      const html = await page.content();
+      if (DEBUG) debugPages.push(`<!-- conversation ${index} -->\n${html}`);
+      const found = [...new Set([...idsFromLinks(links), ...idsFromHtml(html), ...fromNetwork])].filter(id => !baseline.has(id));
+      totalFound += found.length;
+      const fresh = unseen(found, seen).slice(0, MAX_PER_RUN);
+      if (!fresh.length) continue;
+      const results = await ingest(fresh, sender);
+      for (const id of fresh) seen.add(id);
+      const addedHere = results.filter(result => result.status === 'added').length;
+      added += addedHere;
+      log(`${sender || 'Conversation'} : ${fresh.length} TikTok(s) repéré(s), ${addedHere} nouvelle(s) strat(s)`);
     }
-
-    const links = await page.$$eval('a[href]', anchors => anchors.map(anchor => anchor.href));
-    const html = await page.content();
     if (DEBUG) {
-      writeFileSync('/data/inbox-debug.html', html);
+      writeFileSync('/data/inbox-debug.html', debugPages.join('\n'));
       writeFileSync('/data/inbox-debug-network.txt', debugResponses.join('\n----\n'));
-      log(`Débogage : ${links.length} liens, page et réponses enregistrées dans /data`);
+      log(`Débogage : ${count} conversation(s) enregistrée(s) dans /data`);
     }
     await context.storageState({ path:STATE_FILE });
-
-    const found = [...new Set([...idsFromLinks(links), ...idsFromHtml(html), ...fromNetwork])];
-    const fresh = unseen(found, seen).slice(0, MAX_PER_RUN);
-    if (!fresh.length) return { ok:true, found:found.length, added:0 };
-    const results = await ingest(fresh);
-    for (const id of fresh) seen.add(id);
-    const added = results.filter(result => result.status === 'added').length;
-    log(`${fresh.length} TikTok(s) repéré(s) dans le groupe, ${added} nouvelle(s) strat(s)`);
-    return { ok:true, found:found.length, added };
+    return { ok:true, conversations:count, found:totalFound, added };
   } finally {
     await browser.close().catch(() => {});
   }
 }
 
 async function main() {
-  if (!GROUP || !env.INGEST_TOKEN) {
-    log('TIKTOK_GROUP ou INGEST_TOKEN manquant : robot du groupe TikTok en pause.');
+  if (!env.INGEST_TOKEN) {
+    log('INGEST_TOKEN manquant : robot TikTok en pause.');
     for (;;) await sleep(3_600_000);
   }
   const saved = readJson(SEEN_FILE, { seen:[] });

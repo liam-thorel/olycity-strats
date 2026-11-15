@@ -14,9 +14,10 @@ services:
       - "127.0.0.1:3100:3100" # jamais exposé directement : l'accès passe par le tunnel
     networks: [default, tunnel]
 
-  # Robot du groupe TikTok : lit le groupe avec le compte dédié et envoie les TikToks au serveur.
-  # Session : data/tiktok-state.json (créée par inbox/login.mjs sur un PC). Réglages dans .env :
-  # TIKTOK_GROUP (nom exact du groupe) et INGEST_TOKEN (le même que pour « strats »).
+  # Robot de la messagerie TikTok : lit les messages privés reçus par le compte dédié
+  # (TikTok sur le web n'affiche pas les groupes) et envoie les TikToks au serveur.
+  # Session : data/tiktok-state.json (créée par inbox/login.mjs sur un PC).
+  # Réglage dans .env : INGEST_TOKEN (le même que pour « strats »).
   inbox:
     build: ./inbox
     container_name: olycity-strats-inbox

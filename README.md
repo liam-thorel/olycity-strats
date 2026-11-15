@@ -17,6 +17,12 @@ l'exclure du serveur ; son accès tombe dans les 6 heures (`RECHECK_HOURS`).
     (`share_target` → `/share`).
   - **iPhone** : raccourci Raccourcis qui ouvre `https://strats.olycity.fr/?add=<lien>`.
   Un partage reçu avant connexion est gardé le temps de se connecter avec Discord.
+- **Message privé TikTok** : envoyer le TikTok en privé au compte TikTok dédié.
+  Le conteneur `inbox` (Chromium sur le mini PC) lit sa messagerie toutes les ~5 min
+  et ajoute chaque TikTok reçu au nom de l'expéditeur. TikTok sur le web n'affiche
+  pas les groupes : il faut un message privé. Session du compte : `node inbox/login.mjs`
+  sur un PC (connexion à la main, QR code conseillé), puis
+  `scp inbox/tiktok-state.json root@ak1:/root/olycity-strats/data/` (fichier secret).
 - **Ajouter** : coller un ou plusieurs liens TikTok (un message Discord entier
   marche aussi). Avec un seul lien, la fiche s'ouvre préremplie pour vérifier ;
   avec plusieurs, tout est ajouté d'un coup en « À tester ».

@@ -78,12 +78,17 @@ async function runOnce(seen, firstRun) {
     });
 
     await page.goto('https://www.tiktok.com/messages', { waitUntil:'domcontentloaded', timeout:60_000 });
-    await sleep(8000);
+    if (/\/login/.test(page.url())) return { ok:false, error:'Session expirée : relancer « node inbox/login.mjs » puis renvoyer la session' };
+    // La liste des conversations met une vingtaine de secondes à arriver.
+    await page.waitForSelector('[data-e2e="dm-new-conversation-item"]', { timeout:45_000 }).catch(() => {});
+    await sleep(3000);
     if (/\/login/.test(page.url())) return { ok:false, error:'Session expirée : relancer « node inbox/login.mjs » puis renvoyer la session' };
 
     // Le groupe : son nom dans la liste des conversations.
-    const entry = page.getByText(GROUP, { exact:true }).first();
+    const names = await page.$$eval('[data-e2e="dm-new-conversation-nickname"]', nodes => nodes.map(node => node.innerText.trim()));
+    const entry = page.locator('[data-e2e="dm-new-conversation-item"]', { hasText:GROUP }).first();
     if (!(await entry.count())) {
+      log(`Conversations visibles : ${names.length} (groupe « ${GROUP} » absent)`);
       if (DEBUG) writeFileSync('/data/inbox-debug.html', await page.content());
       return { ok:false, error:`Groupe « ${GROUP} » introuvable dans la liste des conversations` };
     }
